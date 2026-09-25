@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#1b5e20" />
+  <title>Misión Árbol - Control y Seguimiento</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/icons/icon-512.png" />
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="/css/estilo.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+        integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g"
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"></script>
+</head>
+<body>
+  <a href="#mainContent" class="skip-link">Saltar al contenido principal</a>
+  <!-- ==================== LOGIN ==================== -->
+  <section id="vista-login" class="vista activa">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="logo" style="background:none; box-shadow:none;">
+          <img src="https://i.ibb.co/Rk47MkBY/logo-mision-arbol.png"
+              alt="Misión Árbol"
+              style="width:180px; height:auto; border-radius:12px;">
+        </div>
+        <h2>Misión Árbol</h2>
+        <p>Plataforma de Control y Seguimiento</p>
+
+        <form id="form-login">
+          <div class="form-group">
+            <label><i class="fas fa-user"></i> Correo</label>
+            <input type="email" id="login-email" placeholder="Ingrese su correo" autocomplete="username" required />
+          </div>
+          <div class="form-group">
+            <label><i class="fas fa-lock"></i> Contraseña</label>
+            <input type="password" id="login-pass" placeholder="Ingrese su contraseña" autocomplete="current-password" required />
+          </div>
+          <button type="submit" class="btn-login">
+            <i class="fas fa-sign-in-alt"></i> Iniciar sesión
+          </button>
+        </form>
+
+        <button id="btn-google" class="btn-google">
+          <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+            <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+          </svg>
+          <span>Continuar con Google</span>
+        </button>
+
+        <p class="texto-pie" style="margin-top:12px">
+          <a href="#" id="btn-forgot">¿Olvidaste tu contraseña?</a>
+        </p>
+        <p class="texto-pie">
+          ¿No tienes cuenta? <a href="#" id="ir-registro">Regístrate</a>
+        </p>
+        <p id="login-error" class="error-message"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== REGISTRO ==================== -->
+  <section id="vista-registro" class="vista">
+    <div class="login-container">
+      <div class="login-card" style="max-width:560px">
+        <div class="logo" style="background:none; box-shadow:none;">
+          <img src="https://i.ibb.co/Rk47MkBY/logo-mision-arbol.png"
+              alt="Misión Árbol"
+              style="width:180px; height:auto; border-radius:12px;">
+        </div>
+        <h2>Registro</h2>
+        <p>Crea tu cuenta en Misión Árbol</p>
+
+        <form id="form-registro">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nombre</label>
+              <input type="text" id="reg-nombre" required />
+            </div>
+            <div class="form-group">
+              <label>Apellido</label>
+              <input type="text" id="reg-apellido" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Cédula</label>
+              <input type="text" id="reg-cedula" placeholder="V-12345678" required />
+            </div>
+            <div class="form-group">
+              <label>Teléfono</label>
+              <input type="tel" id="reg-telefono" placeholder="0412-1234567" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Correo</label>
+            <input type="email" id="reg-email" required />
+          </div>
+          <div class="form-group">
+            <label>Contraseña</label>
+            <input type="password" id="reg-pass" minlength="6" required />
+          </div>
+          <div class="form-group">
+            <label>Tipo de usuario</label>
+            <select id="reg-rol" required>
+              <option value="">Seleccione...</option>
+              <option value="reporte_estadal">Reporte Estadal</option>
+              <option value="reporte_nacional">Reporte Nacional</option>
+              <option value="visor_nacional">Visor Nacional (solo lectura)</option>
+              <option value="dashboard_nacional">Gestión Nacional</option>
+              <option value="dashboard_estadal">Gestión Estadal</option>
+            </select>
+          </div>
+          <div class="form-group oculto" id="reg-campo-estado">
+            <label>Estado</label>
+            <select id="reg-estado"></select>
+          </div>
+          <div class="form-group oculto" id="reg-campo-gerencia">
+            <label>Gerencia</label>
+            <select id="reg-gerencia"></select>
+          </div>
+          <button type="submit" class="btn-login">Registrarme</button>
+        </form>
+
+        <p class="texto-pie"><a href="#" id="ir-login">Volver al inicio</a></p>
+        <p id="reg-error" class="error-message"></p>
+        <p id="reg-ok" class="ok-message"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== APP ==================== -->
+  <section id="vista-app" class="vista">
+    <div id="mainDashboard">
+      <button id="btn-menu" class="menu-toggle"
+              aria-label="Abrir o cerrar menú de navegación"
+              aria-expanded="false"
+              aria-controls="sidebar">
+        <i class="fas fa-bars" aria-hidden="true"></i>
+      </button>
+
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-inner">
+          <div class="profile-section">
+            <div class="user-avatar" id="userAvatar">🌳</div>
+            <div class="profile-info">
+              <div class="profile-name" id="userName"></div>
+              <div class="profile-role" id="userRole"></div>
+              <div class="nivel-usuario" id="nivelUsuario"></div>
+            </div>
+          </div>
+          <nav class="nav-menu" id="navMenu"></nav>
+          <div class="sidebar-footer">
+            <a class="nav-link" id="btn-logout">
+              <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
+              <span class="nav-text">Cerrar Sesión</span>
+            </a>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-content" id="mainContent" role="main">
+        <header class="main-header">
+          <h1 id="pageTitle">Panel</h1>
+        </header>
+
+        <!-- ==================== PANEL: CONTROL ==================== -->
+        <div id="panel-control" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-shield-alt"></i> Panel de Control y Seguimiento</h2>
+          </div>
+
+          <section class="subpanel" id="subpanel-descargas">
+            <h3>📥 Descarga de Reportes</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Fecha desde:</label>
+                <input type="date" id="fechaDesdeDescarga">
+              </div>
+              <div class="form-group">
+                <label>Fecha hasta:</label>
+                <input type="date" id="fechaHastaDescarga">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Seleccionar columnas:</label>
+              <div id="columnasCheckboxes" class="checkbox-group"></div>
+            </div>
+            <button class="btn btn-success" id="btnDescargarReporte">
+              <i class="fas fa-download"></i> Descargar CSV
+            </button>
+          </section>
+
+          <section class="subpanel" id="subpanel-planificaciones">
+            <h3>📥 Descarga de planificaciones</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Fecha desde:</label>
+                <input type="date" id="fechaDesdePlanif">
+              </div>
+              <div class="form-group">
+                <label>Fecha hasta:</label>
+                <input type="date" id="fechaHastaPlanif">
+              </div>
+            </div>
+            <button class="btn btn-success" id="btnDescargarPlanif">
+              <i class="fas fa-download"></i> Descargar CSV
+            </button>
+          </section>
+
+          <section class="subpanel" id="subpanel-reportes-especiales">
+            <h3>📋 Reportes Especiales (Avanzado)</h3>
+            <div id="adminReportesEspeciales"></div>
+          </section>
+
+          <section class="subpanel" id="subpanel-admin-usuarios">
+            <h3>👥 Administración de Usuarios</h3>
+            <div class="table-container">
+              <table class="tabla-dashboard" id="tablaUsuarios">
+                <thead>
+                  <tr><th>Usuario</th><th>Rol</th><th>Estado/Gerencia</th><th>Acciones</th></tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <!-- ==================== PANEL: REPORTE NACIONAL ==================== -->
+        <div id="panel-reporte-nacional" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-flag"></i> Reporte Nacional</h2>
+          </div>
+          <div id="formReporteNacional"></div>
+          <div id="reporteEspecialContainerNac"></div>
+        </div>
+
+        <!-- ==================== PANEL: REPORTE ESTADAL ==================== -->
+        <div id="panel-reporte-estadal" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-map-marker-alt"></i> Reporte Estadal - <span id="estadoActualRep"></span></h2>
+          </div>
+          <div id="formReporteEstadal"></div>
+          <div id="reporteEspecialContainerEst"></div>
+        </div>
+
+        <!-- ==================== PANEL: DASHBOARD ESTADAL ==================== -->
+        <div id="panel-dashboard-estadal" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-chart-bar"></i> Dashboard Estadal - <span id="estadoActualDash"></span></h2>
+          </div>
+          <div id="dashboardEstadalContent"></div>
+        </div>
+
+        <!-- ==================== PANEL: DASHBOARD NACIONAL ==================== -->
+        <div id="panel-dashboard-nacional" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-chart-line"></i> Dashboard Nacional</h2>
+          </div>
+          <div id="dashboardNacionalContent"></div>
+        </div>
+
+        <!-- ==================== PANEL: PERSONAL ==================== -->
+        <div id="panel-personal" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-users"></i> Mi Personal</h2>
+          </div>
+          <div class="subpanel">
+            <h3>Agregar nuevo personal</h3>
+            <form id="formAgregarPersonal">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nombre completo *</label>
+                  <input type="text" id="personal_nombre" required>
+                </div>
+                <div class="form-group">
+                  <label>Cédula *</label>
+                  <input type="text" id="personal_cedula" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Teléfono *</label>
+                  <input type="tel" id="personal_telefono" required>
+                </div>
+                <div class="form-group">
+                  <label>Correo electrónico</label>
+                  <input type="email" id="personal_correo">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label><input type="checkbox" id="personal_whatsapp"> Tiene WhatsApp</label>
+                </div>
+                <div class="form-group">
+                  <label><input type="checkbox" id="personal_telegram"> Tiene Telegram</label>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Talla camisa</label>
+                  <input type="text" id="personal_tallaCamisa" placeholder="S, M, L, XL">
+                </div>
+                <div class="form-group">
+                  <label>Talla pantalón</label>
+                  <input type="text" id="personal_tallaPantalon">
+                </div>
+                <div class="form-group">
+                  <label>Talla zapato</label>
+                  <input type="text" id="personal_tallaZapato">
+                </div>
+                <div class="form-group">
+                  <label>Talla gorra</label>
+                  <input type="text" id="personal_tallaGorra">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Cargo *</label>
+                <input type="text" id="personal_cargo" required>
+              </div>
+              <button type="submit" class="btn btn-success">Guardar personal</button>
+            </form>
+          </div>
+          <div class="subpanel">
+            <h3>Lista de personal</h3>
+            <div id="panel-personal-content"></div>
+          </div>
+        </div>
+
+        <!-- ==================== PANEL: BRIGADAS ==================== -->
+        <div id="panel-brigadas" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-users"></i> Gestión de Brigadas</h2>
+          </div>
+
+          <div id="brigadasWarning"></div>
+
+          <!-- Formulario -->
+          <form id="formBrigada" style="display:none;">
+            <div class="subpanel">
+              <h3>👥 Datos de la Brigada</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nombre de la brigada *</label>
+                  <input type="text" id="bri_nombre" placeholder="Ej: Eco-Brigada Los Samanes" required>
+                </div>
+                <div class="form-group">
+                  <label>Tipo de brigada *</label>
+                  <select id="bri_tipo" required>
+                    <option value="">Seleccione...</option>
+                    <option value="Eco-brigadas">Eco-brigadas</option>
+                    <option value="Grupos de Trabajo">Grupos de Trabajo</option>
+                    <option value="Brigada mixta">Brigada mixta</option>
+                    <option value="Guardianes del Árbol">Guardianes del Árbol</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Cantidad de miembros *</label>
+                  <input type="number" id="bri_miembros" min="1" value="1" required>
+                </div>
+                <div class="form-group">
+                  <label>Clasificación por edades *</label>
+                  <select id="bri_clasificacion" required>
+                    <option value="">Seleccione...</option>
+                    <option value="Araguaney I (0 a 5 años)">Araguaney I (0 a 5 años)</option>
+                    <option value="Araguaney II (6 a 9 años)">Araguaney II (6 a 9 años)</option>
+                    <option value="Araguaney III (10 a 11 años)">Araguaney III (10 a 11 años)</option>
+                    <option value="Jacaranda I (12 a 14 años)">Jacaranda I (12 a 14 años)</option>
+                    <option value="Jacaranda II (15 a 17 años)">Jacaranda II (15 a 17 años)</option>
+                    <option value="Mango (Superior de 31 años)">Mango (Superior de 31 años)</option>
+                    <option value="Distintas Edades">Distintas Edades</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Fecha de conformación</label>
+                <input type="date" id="bri_fechaConformacion">
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <h3>📍 Ubicación</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estado *</label>
+                  <select id="bri_estado" required></select>
+                </div>
+                <div class="form-group">
+                  <label>Municipio *</label>
+                  <select id="bri_municipio" disabled required></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Parroquia *</label>
+                  <select id="bri_parroquia" disabled required></select>
+                </div>
+                <div class="form-group">
+                  <label>Comuna / Circuito *</label>
+                  <select id="bri_comuna" disabled required></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Consejo Comunal *</label>
+                <select id="bri_consejo" disabled required></select>
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <h3>👤 Responsable y estado</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Responsable principal</label>
+                  <input type="text" id="bri_responsable" placeholder="Nombre y apellido">
+                </div>
+                <div class="form-group">
+                  <label>Teléfono del responsable</label>
+                  <input type="tel" id="bri_telefono" placeholder="0412-1234567">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estatus *</label>
+                  <select id="bri_estatus" required>
+                    <option value="activo">Activa</option>
+                    <option value="inactivo">Inactiva</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Observaciones</label>
+                  <input type="text" id="bri_observaciones" placeholder="Opcional">
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button type="button" class="btn btn-secondary" id="btnCancelarBrigada">Cancelar</button>
+              <button type="submit" class="btn btn-success" id="btnGuardarBrigada">💾 Guardar brigada</button>
+            </div>
+          </form>
+
+          <!-- Botón "agregar" -->
+          <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
+            <button class="btn btn-primary" id="btnNuevaBrigada" style="display:none;">
+              + Nueva brigada
+            </button>
+          </div>
+
+          <!-- Tabla -->
+          <div class="subpanel">
+            <h3>📋 Brigadas registradas</h3>
+            <div id="listaBrigadas"></div>
+          </div>
+        </div>
+
+        <!-- ==================== PANEL: BANCOS DE TIERRA ==================== -->
+        <div id="panel-bancos-tierra" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-mountain"></i> Gestión de Bancos de Tierra</h2>
+          </div>
+
+          <div id="bancosWarning"></div>
+
+          <!-- Formulario -->
+          <form id="formBanco" style="display:none;">
+            <div class="subpanel">
+              <h3>🏞️ Datos del Banco de Tierra</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nombre del banco *</label>
+                  <input type="text" id="ban_nombre" placeholder="Ej: Banco de Tierra Comunitario" required>
+                </div>
+                <div class="form-group">
+                  <label>Superficie (hectáreas) *</label>
+                  <input type="number" id="ban_superficie" min="0" step="0.01" value="0" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Tipo de suelo *</label>
+                  <select id="ban_tipoSuelo" required>
+                    <option value="">Seleccione...</option>
+                    <option value="Limoso">Limoso</option>
+                    <option value="Arcilloso">Arcilloso</option>
+                    <option value="Arenoso">Arenoso</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Afectación *</label>
+                  <select id="ban_afectacion" required>
+                    <option value="">Seleccione...</option>
+                    <option value="Ninguna">Ninguna</option>
+                    <option value="Incendio Forestal">Incendio Forestal</option>
+                    <option value="Aprovechamiento agrícola">Aprovechamiento agrícola</option>
+                    <option value="Expansión periurbana">Expansión periurbana</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <h3>📍 Ubicación</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estado *</label>
+                  <select id="ban_estado" required></select>
+                </div>
+                <div class="form-group">
+                  <label>Municipio *</label>
+                  <select id="ban_municipio" disabled required></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Parroquia *</label>
+                  <select id="ban_parroquia" disabled required></select>
+                </div>
+                <div class="form-group">
+                  <label>Comuna / Circuito *</label>
+                  <select id="ban_comuna" disabled required></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Consejo Comunal *</label>
+                <select id="ban_consejo" disabled required></select>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Latitud</label>
+                  <input type="text" id="ban_lat" placeholder="Ej: 8.5">
+                </div>
+                <div class="form-group">
+                  <label>Longitud</label>
+                  <input type="text" id="ban_lng" placeholder="Ej: -66.9">
+                </div>
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <h3>🌱 Características y estado</h3>
+              <div class="form-group">
+                <label>Vegetación actual</label>
+                <input type="text" id="ban_vegetacion" placeholder="Ej: Pastizales, arbustos, sin vegetación...">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estatus *</label>
+                  <select id="ban_estatus" required>
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Responsable</label>
+                  <input type="text" id="ban_responsable" placeholder="Nombre y apellido">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Teléfono del responsable</label>
+                  <input type="tel" id="ban_telefono" placeholder="0412-1234567">
+                </div>
+                <div class="form-group">
+                  <label>Observaciones</label>
+                  <input type="text" id="ban_observaciones" placeholder="Opcional">
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button type="button" class="btn btn-secondary" id="btnCancelarBanco">Cancelar</button>
+              <button type="submit" class="btn btn-success" id="btnGuardarBanco">💾 Guardar banco</button>
+            </div>
+          </form>
+
+          <!-- Botón "agregar" -->
+          <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
+            <button class="btn btn-primary" id="btnNuevoBanco" style="display:none;">
+              + Nuevo banco de tierra
+            </button>
+          </div>
+
+          <!-- Tabla -->
+          <div class="subpanel">
+            <h3>📋 Bancos de tierra registrados</h3>
+            <div id="listaBancos"></div>
+          </div>
+        </div>
+
+        <!-- ==================== PANEL: VIVEROS ==================== -->
+        <div id="panel-viveros" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-warehouse"></i> Gestión de Viveros</h2>
+          </div>
+
+          <div id="viverosWarning"></div>
+
+          <!-- Formulario -->
+          <form id="formVivero" style="display:none;">
+            <div class="subpanel">
+              <h3>🏡 Datos del Vivero</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nombre del vivero *</label>
+                  <input type="text" id="viv_nombre" placeholder="Ej: Vivero Comunitario Bolívar" required>
+                </div>
+                <div class="form-group">
+                  <label>Tipo *</label>
+                  <select id="viv_tipo" required>
+                    <option value="">Seleccione...</option>
+                    <option value="VIVERO INSTITUCIONAL">Vivero Institucional</option>
+                    <option value="VIVERO COMUNITARIO">Vivero Comunitario</option>
+                    <option value="VIVERO ESCOLAR">Vivero Escolar</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <h3>📍 Ubicación</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estado *</label>
+                  <select id="viv_estado" required></select>
+                </div>
+                <div class="form-group">
+                  <label>Municipio *</label>
+                  <select id="viv_municipio" disabled required></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Parroquia *</label>
+                  <select id="viv_parroquia" disabled required></select>
+                </div>
+                <div class="form-group">
+                  <label>Comuna / Circuito *</label>
+                  <select id="viv_comuna" disabled required></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Consejo Comunal *</label>
+                <select id="viv_consejo" disabled required></select>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Latitud</label>
+                  <input type="text" id="viv_lat" placeholder="Ej: 8.5">
+                </div>
+                <div class="form-group">
+                  <label>Longitud</label>
+                  <input type="text" id="viv_lng" placeholder="Ej: -66.9">
+                </div>
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <h3>📊 Estado y capacidad</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Capacidad máxima (plantas)</label>
+                  <input type="number" id="viv_capacidad" min="0" value="0">
+                </div>
+                <div class="form-group">
+                  <label>Plantas actuales</label>
+                  <input type="number" id="viv_plantasActuales" min="0" value="0">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estatus *</label>
+                  <select id="viv_estatus" required>
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Responsable</label>
+                  <input type="text" id="viv_responsable" placeholder="Nombre y apellido">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Teléfono del responsable</label>
+                  <input type="tel" id="viv_telefono" placeholder="0412-1234567">
+                </div>
+                <div class="form-group">
+                  <label>Observaciones</label>
+                  <input type="text" id="viv_observaciones" placeholder="Opcional">
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button type="button" class="btn btn-secondary" id="btnCancelarVivero">Cancelar</button>
+              <button type="submit" class="btn btn-success" id="btnGuardarVivero">💾 Guardar vivero</button>
+            </div>
+          </form>
+
+          <!-- Botón "agregar" (solo admin/producción) -->
+          <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
+            <button class="btn btn-primary" id="btnNuevoVivero" style="display:none;">
+              + Nuevo vivero
+            </button>
+          </div>
+
+          <!-- Tabla -->
+          <div class="subpanel">
+            <h3>📋 Viveros registrados</h3>
+            <div id="listaViveros"></div>
+          </div>
+        </div>
+
+        <!-- ==================== PANEL: PLANIFICACIÓN ==================== -->
+        <div id="panel-planificacion" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-calendar-alt"></i> Planificación Semanal</h2>
+          </div>
+
+          <!-- ====== FORMULARIO ====== -->
+          <form id="formPlanificacion">
+
+            <!-- Bloque: Semana -->
+            <div class="subpanel">
+              <h3>📅 Semana de Planificación</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Fecha inicio de semana (lunes) *</label>
+                  <input type="date" id="plan_semana" required>
+                </div>
+                <div class="form-group">
+                  <label>Fecha fin de semana (domingo)</label>
+                  <input type="text" id="plan_semana_fin" readonly
+                         style="background:#f5f5f5; cursor:not-allowed;">
+                </div>
+              </div>
+            </div>
+
+            <!-- Bloque: Ubicación territorial (cascada) -->
+            <div class="subpanel">
+              <h3>📍 Ubicación Territorial</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estado *</label>
+                  <select id="plan_estado" required></select>
+                </div>
+                <div class="form-group">
+                  <label>Municipio *</label>
+                  <select id="plan_municipio" disabled required></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Parroquia *</label>
+                  <select id="plan_parroquia" disabled required></select>
+                </div>
+                <div class="form-group">
+                  <label>Comuna / Circuito Comunal *</label>
+                  <select id="plan_comuna" disabled required></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Consejo Comunal *</label>
+                <select id="plan_consejo" disabled required></select>
+              </div>
+            </div>
+
+            <!-- Bloque: Actividades -->
+            <div class="subpanel">
+              <h3>📝 Actividades de la Semana</h3>
+              <div id="actividades-container"></div>
+              <button type="button" class="btn btn-primary" id="btnAgregarActividad">
+                + Agregar actividad
+              </button>
+            </div>
+
+            <!-- Botones de acción -->
+            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top: 8px;">
+              <button type="button" class="btn btn-secondary" id="btnLimpiarPlanificacion">
+                🔄 Limpiar
+              </button>
+              <button type="submit" class="btn btn-success">
+                💾 Guardar planificación
+              </button>
+            </div>
+          </form>
+
+          <!-- ====== RESUMEN ESTADÍSTICO ====== -->
+          <div class="subpanel" style="margin-top: 22px; background: linear-gradient(135deg, #f1f8e9 0%, #e8f5e9 100%); border-left: 5px solid var(--verde-brillante);">
+            <h3>📊 Resumen de Planificación</h3>
+            <div id="planificacionStats"></div>
+          </div>
+
+          <!-- ====== LISTA HISTÓRICA ====== -->
+          <div class="subpanel" style="margin-top: 22px;">
+            <h3>📚 Mis planificaciones anteriores</h3>
+            <div id="panel-planificacion-content"></div>
+          </div>
+        </div>
+
+        <!-- ==================== MODAL: DETALLE PLANIFICACIÓN ==================== -->
+        <div id="modalDetallePlanificacion" class="modal-overlay" style="display:none;"
+             role="dialog" aria-modal="true" aria-label="Detalle de planificación">
+          <div class="modal-content" style="max-width:700px; max-height: 85vh; overflow-y:auto;">
+            <button class="modal-close" id="btnCerrarModalDetalle" aria-label="Cerrar modal">&times;</button>
+            <div id="detallePlanificacionContent"></div>
+            <button class="btn btn-secondary" id="btnCerrarDetalleBtn" style="margin-top:12px;">Cerrar</button>
+          </div>
+        </div>
+
+  <!-- ==================== MODALES ==================== -->
+  <div id="modalAprobarUsuario" class="modal-overlay" style="display:none;"
+       role="dialog" aria-modal="true" aria-labelledby="modalAprobarTitulo">
+    <div class="modal-content">
+      <button class="modal-close" id="btnCerrarModalAprobar" aria-label="Cerrar modal">&times;</button>
+      <h3 id="modalAprobarTitulo">Aprobar Usuario</h3>
+      <div class="form-group">
+        <label>Rol en el Sistema</label>
+        <select id="rolModal">
+          <option value="">Seleccione rol</option>
+          <option value="control">Control y Seguimiento Nacional</option>
+          <option value="visor_nacional">Visor Nacional (solo lectura)</option>
+          <option value="reporte_nacional">Reporte Nacional</option>
+          <option value="reporte_estadal">Reporte Estadal</option>
+          <option value="dashboard_nacional">Gestión Nacional</option>
+          <option value="dashboard_estadal">Gestión Estadal</option>
+        </select>
+      </div>
+      <div class="form-group" id="extraFieldsModal" style="display:none;"></div>
+      <button class="btn btn-success" id="btnConfirmarAprobacion">Confirmar Aprobación</button>
+      <button class="btn btn-secondary" id="btnCancelarAprobacion" style="margin-left:10px;">Cancelar</button>
+    </div>
+  </div>
+
+  <div id="modalEditarPersonal" class="modal-overlay" style="display:none;"
+       role="dialog" aria-modal="true" aria-labelledby="modalEditarPersonalTitulo">
+    <div class="modal-content" style="max-width:600px">
+      <button class="modal-close" id="btnCerrarModalEditar" aria-label="Cerrar modal">&times;</button>
+      <h3 id="modalEditarPersonalTitulo">Editar personal</h3>
+      <input type="hidden" id="edit_personal_id">
+      <div class="form-row">
+        <div class="form-group"><label>Nombre</label><input type="text" id="edit_nombre"></div>
+        <div class="form-group"><label>Cédula</label><input type="text" id="edit_cedula"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Teléfono</label><input type="tel" id="edit_telefono"></div>
+        <div class="form-group"><label>Correo</label><input type="email" id="edit_correo"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label><input type="checkbox" id="edit_whatsapp"> WhatsApp</label></div>
+        <div class="form-group"><label><input type="checkbox" id="edit_telegram"> Telegram</label></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Talla camisa</label><input type="text" id="edit_tallaCamisa"></div>
+        <div class="form-group"><label>Talla pantalón</label><input type="text" id="edit_tallaPantalon"></div>
+        <div class="form-group"><label>Talla zapato</label><input type="text" id="edit_tallaZapato"></div>
+        <div class="form-group"><label>Talla gorra</label><input type="text" id="edit_tallaGorra"></div>
+      </div>
+      <div class="form-group"><label>Cargo</label><input type="text" id="edit_cargo"></div>
+      <button class="btn btn-success" id="btnGuardarEdicionPersonal">Guardar cambios</button>
+      <button class="btn btn-secondary" id="btnCancelarEdicionPersonal" style="margin-left:10px;">Cancelar</button>
+    </div>
+  </div>
+
+  <div id="modalRegistroGoogle" class="modal-overlay" style="display:none;"
+       role="dialog" aria-modal="true" aria-labelledby="modalGoogleTitulo">
+    <div class="modal-content" style="max-width:600px">
+      <button class="modal-close" id="btnCerrarModalRegistro" aria-label="Cerrar modal">&times;</button>
+      <h3 id="modalGoogleTitulo">Completa tus Datos</h3>
+      <div class="form-row">
+        <div class="form-group"><label>Nombre *</label><input type="text" id="regNombre"></div>
+        <div class="form-group"><label>Apellido *</label><input type="text" id="regApellido"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Cédula *</label><input type="text" id="regCedula" placeholder="V-12345678"></div>
+        <div class="form-group"><label>Teléfono *</label><input type="tel" id="regTelefono" placeholder="0412-1234567"></div>
+      </div>
+      <div class="form-group"><label>Dirección</label><input type="text" id="regDireccion"></div>
+      <div class="form-group"><label>Cargo</label><input type="text" id="regCargo"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Estado *</label>
+          <select id="regEstado" onchange="cargarMunicipiosRegistro()">
+            <option value="">Seleccione estado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Municipio *</label>
+          <select id="regMunicipio" onchange="cargarParroquiasRegistro()" disabled>
+            <option value="">Seleccione municipio</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Parroquia</label>
+        <select id="regParroquia" disabled>
+          <option value="">Seleccione parroquia</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Contraseña * (mínimo 6 caracteres)</label><input type="password" id="regPassword"></div>
+      <button class="btn btn-success" id="btnCompletarRegistroGoogle">Registrarme</button>
+      <button class="btn btn-secondary" id="btnCancelarRegistroGoogle" style="margin-left:10px;">Cancelar</button>
+      <p id="regError" class="error-message" style="margin-top:10px;"></p>
+    </div>
+  </div>
+
+  <div id="modalReporteEspecial" class="modal-overlay" style="display:none;"
+       role="dialog" aria-modal="true" aria-labelledby="repEspTitulo">
+    <div class="modal-content" style="max-width: 700px; max-height: 85vh; overflow-y: auto;">
+      <button class="modal-close" id="btnCerrarModalRepEsp" aria-label="Cerrar modal">&times;</button>
+      <h3 id="repEspTitulo" style="margin-bottom: 6px;">📋 Reporte Especial</h3>
+      <p id="repEspDescripcion" style="color: #666; font-size: 13px; margin-bottom: 16px;"></p>
+      <div id="repEspCampos"></div>
+      <div style="margin-top: 18px; display: flex; gap: 10px;">
+        <button class="btn btn-success" id="btnEnviarRepEsp">📤 Enviar respuesta</button>
+        <button class="btn btn-secondary" id="btnCerrarRepEsp2">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalSesionPorExpirar" class="modal-overlay" style="display:none;"
+       role="dialog" aria-modal="true" aria-labelledby="modalSesionTitulo">
+    <div class="modal-content" style="max-width:420px; text-align:center;">
+      <h3 id="modalSesionTitulo" style="color: var(--verde-oscuro); margin-bottom: 12px;">
+        ⏰ Tu sesión está por expirar
+      </h3>
+      <p style="margin-bottom: 18px; color: #555;">
+        Por inactividad, tu sesión se cerrará en
+        <strong id="segundosRestantes">180</strong> segundos.
+      </p>
+      <button class="btn btn-success" id="btnExtenderSesion">
+        Extender sesión
+      </button>
+      <button class="btn btn-secondary" id="btnCerrarSesionAhora"
+              style="margin-left: 10px;">
+        Cerrar sesión ahora
+      </button>
+    </div>
+  </div>
+
+  <div id="loader" class="loader oculto" role="status" aria-live="polite">Cargando…</div>
+  <div id="toast" class="toast oculto" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script type="module" src="/js/firebase-config.js"></script>
+  <script type="module" src="/js/datos.js"></script>
+  <script type="module" src="/js/auth.js"></script>
+  <script type="module" src="/js/navegacion.js"></script>
+  <script type="module" src="/js/admin.js"></script>
+  <script type="module" src="/js/dashboard.js"></script>
+  <script type="module" src="/js/personal.js"></script>
+  <script type="module" src="/js/planificacion.js"></script>
+  <script type="module" src="/js/reportesEspeciales.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+    }
+  </script>
+</body>
+</html>

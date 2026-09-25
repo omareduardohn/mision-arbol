@@ -1,0 +1,247 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ---------- Helpers ---------- */
+    function isAuth() {
+      return request.auth != null;
+    }
+    function userDoc() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+    function rol() {
+      return isAuth() ? userDoc().rol : '';
+    }
+    function esControl()          { return rol() == 'control'; }
+    function esVisorNacional()    { return rol() == 'visor_nacional'; }
+    function esReporteNacional()  { return rol() == 'reporte_nacional'; }
+    function esReporteEstadal()   { return rol() == 'reporte_estadal'; }
+    function esDashboardNacional(){ return rol() == 'dashboard_nacional'; }
+    function esDashboardEstadal() { return rol() == 'dashboard_estadal'; }
+    function miEstado()   { return userDoc().estado; }
+    function miGerencia() { return userDoc().gerencia; }
+
+    /* ---------- USUARIOS ---------- */
+    match /usuarios/{uid} {
+      allow get: if isAuth() && (request.auth.uid == uid || esControl());
+      allow list: if isAuth() && esControl();
+
+      allow create: if isAuth()
+                    && request.auth.uid == uid
+                    && request.resource.data.rol in [
+                         'reporte_estadal',
+                         'reporte_nacional',
+                         'visor_nacional',
+                         'dashboard_nacional',
+                         'dashboard_estadal'
+                       ]
+                    && request.resource.data.estadoCuenta == 'pendiente';
+
+      allow update: if esControl()
+                    || (isAuth() && request.auth.uid == uid
+                        && !request.resource.data.diff(resource.data)
+                             .affectedKeys()
+                             .hasAny(['rol','estadoCuenta','estado','gerencia','suspendido','cedula','email']));
+
+      allow delete: if esControl();
+    }
+
+    /* ---------- CÉDULAS (hash anti-duplicados) ---------- */
+    match /cedulas/{hashId} {
+      // get individual OK (registro público verifica duplicados)
+      // list restringido a control (evita enumeración)
+      allow get: if true;
+
+      allow list: if isAuth() && esControl();
+
+      allow create: if isAuth()
+                    && request.resource.data.uid == request.auth.uid
+                    && !exists(/databases/$(database)/documents/cedulas/$(hashId));
+      allow delete: if esControl();
+    }
+
+    /* ---------- REPORTES ---------- */
+    match /reportes/{id} {
+      allow get: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esDashboardNacional() && resource.data.gerencia == miGerencia()) ||
+        (esDashboardEstadal()  && resource.data.ubicacion.estado == miEstado()) ||
+        (esReporteNacional()   && resource.data.gerencia == miGerencia()) ||
+        (esReporteEstadal()    && resource.data.ubicacion.estado == miEstado()) ||
+        resource.data.usuarioId == request.auth.uid
+      );
+
+      allow list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esDashboardNacional() && resource.data.gerencia == miGerencia()) ||
+        (esDashboardEstadal()  && resource.data.ubicacion.estado == miEstado()) ||
+        (esReporteNacional()   && resource.data.gerencia == miGerencia()) ||
+        (esReporteEstadal()    && resource.data.ubicacion.estado == miEstado())
+      );
+
+      allow create: if isAuth() && (
+        esControl() ||
+        (esReporteEstadal() && request.resource.data.ubicacion.estado == miEstado()) ||
+        (esReporteNacional() && request.resource.data.gerencia == miGerencia())
+      );
+
+      allow update: if esControl()
+                    || resource.data.usuarioId == request.auth.uid;
+
+      // No permitir delete si el reporte está vinculado a una planificación
+      allow delete: if esControl()
+                    || (resource.data.usuarioId == request.auth.uid
+                        && resource.data.planificacionId == null);
+    }
+
+    /* ---------- PERSONAL ---------- */
+    match /personal/{id} {
+      allow get: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        esDashboardNacional() || esDashboardEstadal() ||
+        (esReporteEstadal()  && resource.data.estado == miEstado()) ||
+        (esReporteNacional() && resource.data.gerencia == miGerencia())
+      );
+
+      allow list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        esDashboardNacional() || esDashboardEstadal() ||
+        (esReporteEstadal()  && resource.data.estado == miEstado()) ||
+        (esReporteNacional() && resource.data.gerencia == miGerencia())
+      );
+
+      allow create: if isAuth() && (
+        esControl() ||
+        (esReporteEstadal()  && request.resource.data.estado == miEstado()) ||
+        (esReporteNacional() && request.resource.data.gerencia == miGerencia())
+      );
+
+      // Update/delete: solo el creador o control
+      allow update, delete: if esControl()
+        || (isAuth() && resource.data.creadoPor == request.auth.uid);
+    }
+
+    /* ---------- PLANIFICACIÓN ---------- */
+    match /planificacion/{id} {
+      allow get: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esReporteEstadal()  && resource.data.estadoUsuario == miEstado()) ||
+        (esReporteNacional() && resource.data.gerenciaUsuario == miGerencia()) ||
+        resource.data.usuarioId == request.auth.uid
+      );
+
+      allow list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esReporteEstadal()  && resource.data.estadoUsuario == miEstado()) ||
+        (esReporteNacional() && resource.data.gerenciaUsuario == miGerencia()) ||
+        resource.data.usuarioId == request.auth.uid
+      );
+
+      allow create: if isAuth() && (
+        esControl() ||
+        (esReporteEstadal()  && request.resource.data.estadoUsuario == miEstado()) ||
+        (esReporteNacional() && request.resource.data.gerenciaUsuario == miGerencia())
+      );
+
+      allow update, delete: if esControl()
+                            || resource.data.usuarioId == request.auth.uid;
+    }
+
+    /* ---------- REPORTES ESPECIALES ---------- */
+    match /reportesEspeciales/{id} {
+      allow get: if isAuth();
+      allow list: if isAuth();
+      allow create, delete: if esControl();
+
+      // Update: control total; usuarios comunes solo pueden AGREGAR
+      // una respuesta (append-only).
+      allow update: if esControl()
+        || (
+          isAuth()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['respuestas'])
+          && request.resource.data.respuestas.size() == resource.data.respuestas.size() + 1
+        );
+    }
+
+    /* ---------- VIVEROS ---------- */
+    match /viveros/{id} {
+      // Lectura: control, reporte_nacional (Producción), dashboard roles
+      allow get: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esReporteNacional() && miGerencia() == 'Producción') ||
+        (esDashboardNacional() && miGerencia() == 'Producción') ||
+        esDashboardEstadal()
+      );
+
+      allow list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esReporteNacional() && miGerencia() == 'Producción') ||
+        (esDashboardNacional() && miGerencia() == 'Producción') ||
+        esDashboardEstadal()
+      );
+
+      // Escritura: control o reporte_nacional de Producción
+      allow create, update, delete: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Producción')
+      );
+    }
+
+    /* ---------- BANCOS DE TIERRA ---------- */
+    match /bancosTierra/{id} {
+      allow get: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esReporteNacional() && miGerencia() == 'Plantación') ||
+        (esDashboardNacional() && miGerencia() == 'Plantación') ||
+        esDashboardEstadal()
+      );
+
+      allow list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esReporteNacional() && miGerencia() == 'Plantación') ||
+        (esDashboardNacional() && miGerencia() == 'Plantación') ||
+        esDashboardEstadal()
+      );
+
+      allow create, update, delete: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Plantación')
+      );
+    }
+
+    /* ---------- BRIGADAS ---------- */
+    match /brigadas/{id} {
+      allow get: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esReporteNacional() && miGerencia() == 'Organización') ||
+        (esDashboardNacional() && miGerencia() == 'Organización') ||
+        esDashboardEstadal()
+      );
+
+      allow list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esReporteNacional() && miGerencia() == 'Organización') ||
+        (esDashboardNacional() && miGerencia() == 'Organización') ||
+        esDashboardEstadal()
+      );
+
+      allow create, update, delete: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Organización')
+      );
+    }
+
+  }
+}
