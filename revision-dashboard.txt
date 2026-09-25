@@ -1,0 +1,183 @@
+﻿1640:   activeDashboardId = 'dashboardEstadalContent';
+1641:   resetJerarquia();
+1642:   estadoActual = perfil.estado || null;
+1643: 
+1644:   const cont = document.getElementById(activeDashboardId);
+1645:   if (!cont) return;
+1646: 
+1647:   // Montamos la barra de filtros (una sola vez por panel)
+1648:   montarFiltrosGlobales(activeDashboardId, 'filtrosDashboardEstadal', perfil);
+1649: 
+1650:   cont.innerHTML = '<div class="panel">CargandoÔÇª</div>';
+1651: 
+1652:   if (unsubEstadal) unsubEstadal();
+1653:   if (unsubPersonalDashboard) unsubPersonalDashboard();
+1654:   if (unsubViveros) unsubViveros();
+1655:   if (unsubBancos) unsubBancos();
+1656:   if (unsubBrigadas) unsubBrigadas();
+1657: 
+1658:   await cargarTerritorio();
+1659: 
+1660:   const qReportes = query(collection(db, 'reportes'), where('ubicacion.estado', '==', perfil.estado));
+1661:   unsubEstadal = onSnapshot(qReportes, (snap) => {
+1662:     reportesCache = snap.docs.map((d) => normalizarReporte({ id: d.id, ...d.data() }));
+1663:     renderJerarquia();
+1664:   }, (err) => {
+1665:     console.error(err);
+1666:     cont.innerHTML = `<div class="panel"><p>Error: ${err.message}</p></div>`;
+1667:   });
+1668: 
+1669:   const qPersonal = query(collection(db, 'personal'), where('estado', '==', perfil.estado));
+1670:   unsubPersonalDashboard = onSnapshot(qPersonal, (snap) => {
+1671:     personalCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+1672:     renderJerarquia();
+1673:   }, (err) => {
+1674:     console.error(err);
+1675:   });
+1676: 
+1677:   // Recursos: viveros / bancos / brigadas
+1678:   // Cada uno con su propio manejo de error para no romper los dem├ís
+1679:   suscribirRecursos(perfil);
+1680: }
+1681: 
+1682: /* ==================== NACIONAL ==================== */
+1683: export async function cargarDashboardNacional() {
+1684:   const perfil = window.__perfil;
+1685:   if (!perfil) return;
+1686: 
+1687:   activeDashboardId = 'dashboardNacionalContent';
+1688:   resetJerarquia();
+1689: 
+1690:   const cont = document.getElementById(activeDashboardId);
+1691:   if (!cont) return;
+1692: 
+1693:   // Montamos la barra de filtros (una sola vez por panel)
+1694:   montarFiltrosGlobales(activeDashboardId, 'filtrosDashboardNacional', perfil);
+1695: 
+1696:   cont.innerHTML = '<div class="panel">CargandoÔÇª</div>';
+1697: 
+1698:   if (unsubNacional) unsubNacional();
+1699:   if (unsubPersonalDashboard) unsubPersonalDashboard();
+1700:   if (unsubViveros) unsubViveros();
+1701:   if (unsubBancos) unsubBancos();
+1702:   if (unsubBrigadas) unsubBrigadas();
+1703: 
+1704:   await cargarTerritorio();
+1705: 
+1706:   let qReportes = collection(db, 'reportes');
+1707:   if (perfil.rol === 'dashboard_nacional' && perfil.gerencia) {
+1708:     // ­ƒöº FIX: filtrar server-side por gerencia y limitar a 500 docs
+1709:     // para evitar descargar la colecci├│n completa.
+1710:     qReportes = query(
+1711:       qReportes,
+1712:       where('gerencia', '==', perfil.gerencia),
+1713:       limit(500)
+1714:     );
+1715:   }
+1716: 
+1717:   unsubNacional = onSnapshot(qReportes, (snap) => {
+1718:     reportesCache = snap.docs.map((d) => normalizarReporte({ id: d.id, ...d.data() }));
+1719:     reportesCache.sort((a, b) => {
+1720:       const tsA = toDateValue(a.fechaRegistro)?.getTime?.() || 0;
+1721:       const tsB = toDateValue(b.fechaRegistro)?.getTime?.() || 0;
+1722:       return tsB - tsA;
+1723:     });
+1724:     renderJerarquia();
+1725:   }, (err) => {
+1726:     console.error(err);
+1727:     cont.innerHTML = `<div class="panel"><p>Error: ${err.message}</p></div>`;
+1728:   });
+1729: 
+1730:   let qPersonal = collection(db, 'personal');
+1731:   if (perfil.rol === 'dashboard_nacional' && perfil.gerencia) {
+1732:     qPersonal = query(qPersonal, where('gerencia', '==', perfil.gerencia));
+1733:   }
+1734: 
+1735:   unsubPersonalDashboard = onSnapshot(qPersonal, (snap) => {
+1736:     personalCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+1737:     renderJerarquia();
+1738:   }, (err) => {
+1739:     console.error(err);
+1740:   });
+1741:     // Recursos: viveros / bancos / brigadas
+1742:   suscribirRecursos(perfil);
+1743: }
+1744: 
+1745: /* ==================== SUSCRIPCI├ôN A RECURSOS ==================== */
+1746: 
+1747: /**
+1748:  * Suscribe el dashboard a las 3 colecciones de recursos
+1749:  * (viveros, bancos de tierra, brigadas).
+1750:  *
+1751:  * Cada suscripci├│n maneja sus propios errores: si el rol no tiene permiso
+1752:  * para una colecci├│n (por ejemplo, un reporte_nacional de Formaci├│n no puede
+1753:  * leer viveros), la suscripci├│n falla silenciosamente sin romper las dem├ís.
+1754:  */
+1755: function suscribirRecursos(perfil) {
+1756:   // Qu├® recursos le corresponden a este usuario:
+1757:   // - control y visor_nacional ÔåÆ los 3
+1758:   // - dashboard_nacional ÔåÆ solo el de su gerencia
+1759:   // - otros roles ÔåÆ ninguno
+1760:   const rol = perfil?.rol;
+1761:   const gerencia = perfil?.gerencia;
+1762: 
+1763:   const verViveros = rol === 'control' || rol === 'visor_nacional'
+1764:     || (rol === 'dashboard_nacional' && gerencia === 'Producci├│n');
+1765:   const verBancos = rol === 'control' || rol === 'visor_nacional'
+1766:     || (rol === 'dashboard_nacional' && gerencia === 'Plantaci├│n');
+1767:   const verBrigadas = rol === 'control' || rol === 'visor_nacional'
+1768:     || (rol === 'dashboard_nacional' && gerencia === 'Organizaci├│n');
+1769: 
+1770:   // Viveros
+1771:   if (verViveros) {
+1772:     unsubViveros = onSnapshot(collection(db, 'viveros'), (snap) => {
+1773:       viverosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+1774:       renderJerarquia();
+1775:     }, (err) => {
+1776:       viverosCache = [];
+1777:     });
+1778:   } else {
+1779:     viverosCache = [];
+1780:   }
+1781: 
+1782:   // Bancos de tierra
+1783:   if (verBancos) {
+1784:     unsubBancos = onSnapshot(collection(db, 'bancosTierra'), (snap) => {
+1785:       bancosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+1786:       renderJerarquia();
+1787:     }, (err) => {
+1788:       bancosCache = [];
+1789:     });
+1790:   } else {
+1791:     bancosCache = [];
+1792:   }
+1793: 
+1794:   // Brigadas
+1795:   if (verBrigadas) {
+1796:     unsubBrigadas = onSnapshot(collection(db, 'brigadas'), (snap) => {
+1797:       brigadasCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+1798:       renderJerarquia();
+1799:     }, (err) => {
+1800:       brigadasCache = [];
+1801:     });
+1802:   } else {
+1803:     brigadasCache = [];
+1804:   }
+1805: }
+1806: 
+1807: /* ==================== CLEANUP EN LOGOUT ==================== */
+1808: /**
+1809:  * Libera las 6 suscripciones onSnapshot cuando el usuario cierra sesi├│n.
+1810:  * Previene memory leaks y consumo de cuota Firestore post-logout.
+1811:  * El evento 'usuarioCerroSesion' es emitido por auth.js en document.
+1812:  */
+1813: function limpiarSuscripcionesDashboard() {
+1814:   if (unsubEstadal) { try { unsubEstadal(); } catch (_) {} unsubEstadal = null; }
+1815:   if (unsubNacional) { try { unsubNacional(); } catch (_) {} unsubNacional = null; }
+1816:   if (unsubPersonalDashboard) { try { unsubPersonalDashboard(); } catch (_) {} unsubPersonalDashboard = null; }
+1817:   if (unsubViveros) { try { unsubViveros(); } catch (_) {} unsubViveros = null; }
+1818:   if (unsubBancos) { try { unsubBancos(); } catch (_) {} unsubBancos = null; }
+1819:   if (unsubBrigadas) { try { unsubBrigadas(); } catch (_) {} unsubBrigadas = null; }
+1820: }
+1821: 
+1822: document.addEventListener('usuarioCerroSesion', limpiarSuscripcionesDashboard);
