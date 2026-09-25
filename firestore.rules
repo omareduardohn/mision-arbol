@@ -237,7 +237,17 @@ service cloud.firestore {
         esDashboardEstadal()
       );
 
-      allow create, update, delete: if isAuth() && (
+      allow create: if isAuth() && (
+        (esControl() || (esReporteNacional() && miGerencia() == 'Organización'))
+        && request.resource.data.tipo == 'ecologica'
+      );
+
+      allow update: if isAuth() && (
+        (esControl() || (esReporteNacional() && miGerencia() == 'Organización'))
+        && request.resource.data.tipo == 'ecologica'
+      );
+
+      allow delete: if isAuth() && (
         esControl() ||
         (esReporteNacional() && miGerencia() == 'Organización')
       );

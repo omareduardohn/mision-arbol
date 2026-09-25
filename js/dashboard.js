@@ -28,7 +28,7 @@ let chartPersonalCargo = null;
 
 let estadoActual = null;
 let municipioActual = null;
-let parroquiaActual = null;
+let parroquiaActual = null; 
 let comunaActual = null;
 let consejoActual = null;
 

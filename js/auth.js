@@ -9,7 +9,9 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
   EmailAuthProvider,
-  linkWithCredential
+  linkWithCredential,
+  setPersistence,
+  browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   doc, setDoc, getDoc, serverTimestamp
@@ -24,9 +26,9 @@ import {
 } from "./datos.js";
 
 /* ---------- Configuración de session timeout ---------- */
-const INACTIVIDAD_LIMITE_MS = 15 * 60 * 1000;
-const AVISO_PREVIO_MS = 3 * 60 * 1000;
-const ABSOLUTO_LIMITE_MS = 4 * 60 * 60 * 1000;
+const INACTIVIDAD_LIMITE_MS = 5 * 60 * 1000;
+const AVISO_PREVIO_MS = 1 * 60 * 1000;
+const ABSOLUTO_LIMITE_MS = 2 * 60 * 60 * 1000;
 
 let ultimaActividad = Date.now();
 let inicioSesion = Date.now();
@@ -274,6 +276,20 @@ function wireRolRegistro() {
     document.getElementById('reg-campo-estado')?.classList.toggle('oculto', !esEstadal);
     document.getElementById('reg-campo-gerencia')?.classList.toggle('oculto', !esNacional);
   });
+
+  const regEstado = document.getElementById('regEstado');
+  regEstado?.addEventListener('change', () => {
+    if (typeof window.cargarMunicipiosRegistro === 'function') {
+      window.cargarMunicipiosRegistro();
+    }
+  });
+
+  const regMunicipio = document.getElementById('regMunicipio');
+  regMunicipio?.addEventListener('change', () => {
+    if (typeof window.cargarParroquiasRegistro === 'function') {
+      window.cargarParroquiasRegistro();
+    }
+  });
 }
 
 /* ---------- Registro público ---------- */
@@ -480,6 +496,11 @@ function observar() {
       sessionStorage.setItem('usuarioActual', JSON.stringify(perfilSeguro));
 
       inicializarDashboard(perfil);
+
+      // Precarga del territorio en background para acelerar el primer uso del dashboard.
+      if (typeof cargarTerritorio === 'function') {
+        cargarTerritorio().catch((err) => console.warn('[Preload] fallo:', err));
+      }
     } catch (err) {
       console.error('Error al cargar perfil:', err);
       toast('Error al cargar tu perfil.');
@@ -661,6 +682,10 @@ function traducirError(code) {
 
 /* ---------- Inicializar ---------- */
 export function initAuth() {
+  setPersistence(auth, browserSessionPersistence).catch((err) => {
+    console.warn('No se pudo configurar la persistencia de sesión:', err);
+  });
+
   poblarEstados();
   poblarGerencias();
   wireNavAuth();

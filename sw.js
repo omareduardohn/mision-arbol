@@ -1,4 +1,4 @@
-const CACHE = 'mision-arbol-v23';
+const CACHE = 'mision-arbol-v24';
 const ASSETS = [
   '/',
   '/index.html',

@@ -11,6 +11,10 @@
   <link rel="apple-touch-icon" href="/assets/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://firestore.googleapis.com" />
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" />
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+  <link rel="preload" as="fetch" href="/data/comunas_y_consejos.json" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -21,7 +25,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
         integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g"
         crossorigin="anonymous"
-        referrerpolicy="no-referrer"></script>
+        referrerpolicy="no-referrer"
+        defer></script>
 </head>
 <body>
   <a href="#mainContent" class="skip-link">Saltar al contenido principal</a>
@@ -360,11 +365,7 @@
                 <div class="form-group">
                   <label>Tipo de brigada *</label>
                   <select id="bri_tipo" required>
-                    <option value="">Seleccione...</option>
-                    <option value="Eco-brigadas">Eco-brigadas</option>
-                    <option value="Grupos de Trabajo">Grupos de Trabajo</option>
-                    <option value="Brigada mixta">Brigada mixta</option>
-                    <option value="Guardianes del Árbol">Guardianes del Árbol</option>
+                    <option value="ecologica">Brigada Ecológica</option>
                   </select>
                 </div>
               </div>
@@ -897,13 +898,13 @@
       <div class="form-row">
         <div class="form-group">
           <label>Estado *</label>
-          <select id="regEstado" onchange="cargarMunicipiosRegistro()">
+          <select id="regEstado">
             <option value="">Seleccione estado</option>
           </select>
         </div>
         <div class="form-group">
           <label>Municipio *</label>
-          <select id="regMunicipio" onchange="cargarParroquiasRegistro()" disabled>
+          <select id="regMunicipio" disabled>
             <option value="">Seleccione municipio</option>
           </select>
         </div>
@@ -967,10 +968,6 @@
   <script type="module" src="/js/personal.js"></script>
   <script type="module" src="/js/planificacion.js"></script>
   <script type="module" src="/js/reportesEspeciales.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
-    }
-  </script>
+  <script type="module" src="/js/sw-register.js"></script>
 </body>
 </html>
