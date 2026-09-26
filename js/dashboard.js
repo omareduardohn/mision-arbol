@@ -1132,48 +1132,77 @@ function inicializarGraficasTerritoriales(filtro) {
     }
   }
 
-  // ===== 2. Tendencia mensual (últimos 6 meses) =====
+  // ===== 2. Tendencia (adaptativa según filtro) =====
   const ctxTend = document.getElementById('chartTendencia')?.getContext('2d');
   if (ctxTend) {
     if (chartTendencia) { try { chartTendencia.destroy(); } catch (_) {} }
 
     const reportes = reportesEnTerritorio(filtro);
 
-    // Construimos los últimos 6 meses
+    // Determinar rango: si hay filtro activo, usar ese rango; si no, últimos 7 días.
     const ahora = new Date();
-    const meses = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
-      meses.push({
-        anio: d.getFullYear(),
-        mes: d.getMonth(),
-        label: d.toLocaleDateString('es-VE', { month: 'short', year: 'numeric' }),
-        count: 0
-      });
+    const tieneFiltroFecha = filtrosGlobales.fechaDesde || filtrosGlobales.fechaHasta;
+    const desde = tieneFiltroFecha && filtrosGlobales.fechaDesde
+      ? new Date(filtrosGlobales.fechaDesde + 'T00:00:00')
+      : new Date(ahora.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const hasta = tieneFiltroFecha && filtrosGlobales.fechaHasta
+      ? new Date(filtrosGlobales.fechaHasta + 'T23:59:59')
+      : ahora;
+
+    // Calcular duración del rango en días
+    const diasRango = Math.max(1, Math.ceil((hasta - desde) / (1000 * 60 * 60 * 24)));
+
+    // Decidir bucket: días (≤ 45 días) o semanas (> 45 días)
+    const usarSemanas = diasRango > 45;
+    const buckets = [];
+
+    if (usarSemanas) {
+      // Buckets semanales (máximo 12 semanas)
+      const semanasTotal = Math.min(12, Math.ceil(diasRango / 7));
+      for (let i = semanasTotal - 1; i >= 0; i--) {
+        const inicio = new Date(ahora.getTime() - (i + 1) * 7 * 24 * 60 * 60 * 1000);
+        const fin = new Date(ahora.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+        buckets.push({
+          label: inicio.toLocaleDateString('es-VE', { day: 'numeric', month: 'short' }),
+          inicio, fin, count: 0
+        });
+      }
+    } else {
+      // Buckets diarios
+      for (let i = diasRango - 1; i >= 0; i--) {
+        const dia = new Date(ahora.getTime() - i * 24 * 60 * 60 * 1000);
+        dia.setHours(0, 0, 0, 0);
+        const fin = new Date(dia.getTime() + 24 * 60 * 60 * 1000);
+        buckets.push({
+          label: dia.toLocaleDateString('es-VE', { day: 'numeric', month: 'short' }),
+          inicio: dia, fin, count: 0
+        });
+      }
     }
 
+    // Distribuir reportes en los buckets
     reportes.forEach(r => {
       const fecha = toDateValue(r.fechaRegistro || r?.actividad?.fecha);
       if (!fecha) return;
-      const anio = fecha.getFullYear();
-      const mes = fecha.getMonth();
-      const m = meses.find(x => x.anio === anio && x.mes === mes);
-      if (m) m.count += 1;
+      const b = buckets.find(x => fecha >= x.inicio && fecha < x.fin);
+      if (b) b.count += 1;
     });
+
+    const tituloRango = tieneFiltroFecha ? 'Tendencia del período' : 'Últimos 7 días';
 
     chartTendencia = new Chart(ctxTend, {
       type: 'line',
       data: {
-        labels: meses.map(m => m.label),
+        labels: buckets.map(b => b.label),
         datasets: [{
-          label: 'Reportes',
-          data: meses.map(m => m.count),
+          label: tituloRango,
+          data: buckets.map(b => b.count),
           borderColor: '#2e7d32',
           backgroundColor: 'rgba(76, 175, 80, 0.15)',
           tension: 0.35,
           fill: true,
           pointBackgroundColor: '#4caf50',
-          pointRadius: 5,
+          pointRadius: 4,
           pointHoverRadius: 7
         }]
       },
@@ -1181,7 +1210,14 @@ function inicializarGraficasTerritoriales(filtro) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false }
+          legend: { display: false },
+          title: {
+            display: true,
+            text: tituloRango,
+            font: { size: 12, weight: '600' },
+            color: '#666',
+            padding: { bottom: 8 }
+          }
         },
         scales: {
           y: {
@@ -1189,7 +1225,7 @@ function inicializarGraficasTerritoriales(filtro) {
             ticks: { precision: 0, font: { size: 11 } }
           },
           x: {
-            ticks: { font: { size: 10 } }
+            ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 0 }
           }
         }
       }

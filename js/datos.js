@@ -591,7 +591,7 @@ export async function cargarTerritorio() {
     }
 
     // 2. Si no hay caché, descargar de la red
-    if (loaderEl) loaderEl.textContent = 'Descargando datos territoriales (7 MB)...';
+    if (loaderEl) loaderEl.textContent = 'Dame chance. Deja el apuro, que estoy trabajando para ti...';
     const res = await fetch('/data/comunas_y_consejos.json');
     _territorio = await res.json();
 
