@@ -18,7 +18,7 @@
 
 import {
   collection, addDoc, getDocs, doc, updateDoc, deleteDoc,
-  serverTimestamp
+  serverTimestamp, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { toast, loader, setBotonCargando } from "./auth.js";
@@ -44,6 +44,30 @@ function usuarioPuedeGestionar(perfil) {
   if (perfil.rol === 'control') return true;
   if (perfil.rol === 'reporte_nacional' && perfil.gerencia === 'Organización') return true;
   return false;
+}
+
+/* ==================== CÓDIGO ÚNICO ==================== */
+
+/**
+ * Genera un código único BRG-XXXXXX usando transacción atómica
+ * sobre /contadores/brigadas.
+ *
+ * @returns {Promise<string>} Ej: "BRG-000007"
+ */
+async function generarCodigoUnicoBrigada() {
+  const contadorRef = doc(db, 'contadores', 'brigadas');
+  const nuevo = await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(contadorRef);
+    const ultimo = snap.exists() ? (Number(snap.data().ultimo) || 0) : 0;
+    const siguiente = ultimo + 1;
+    transaction.set(
+      contadorRef,
+      { ultimo: siguiente, actualizado: serverTimestamp() },
+      { merge: true }
+    );
+    return siguiente;
+  });
+  return `BRG-${String(nuevo).padStart(6, '0')}`;
 }
 
 /* ==================== CARGA PRINCIPAL ==================== */
@@ -315,8 +339,9 @@ async function guardarBrigada() {
       payload.creado = serverTimestamp();
       payload.creadoPor = perfil.uid;
       payload.creadoPorNombre = perfil.nombre || perfil.email;
+      payload.codigoUnico = await generarCodigoUnicoBrigada();
       await addDoc(collection(db, 'brigadas'), payload);
-      toast('Brigada registrada');
+      toast('Brigada registrada: ' + payload.codigoUnico);
     }
     cerrarFormulario();
   } catch (e) {
@@ -363,6 +388,7 @@ async function cargarListaBrigadas(perfil) {
 
       return `
         <tr>
+          <td style="font-size: 11px; color: #666; font-family: monospace;">${escapeHTML(b.codigoUnico || '—')}</td>
           <td><strong>${nombreSeguro}</strong></td>
           <td style="font-size: 12px;">${escapeHTML(b.tipo || '')}</td>
           <td>${b.miembros || 0}</td>
@@ -386,6 +412,7 @@ async function cargarListaBrigadas(perfil) {
         <table class="tabla-dashboard">
           <thead>
             <tr>
+              <th>Código</th>
               <th>Nombre</th>
               <th>Tipo</th>
               <th>Miembros</th>

@@ -358,23 +358,30 @@ async function listarReportes() {
             </tr>
           </thead>
           <tbody>
-            ${reportes.map(r => `
-              <tr>
-                <td><strong>${escapeHTML(r.titulo || '')}</strong></td>
-                <td>${escapeHTML(r.dirigidoA || '')}</td>
-                <td>${r.indicador ? escapeHTML(GERENCIAS.find(g => g.id === r.indicador)?.corto || r.indicador) : '—'}</td>
-                <td>${(r.preguntas || []).length}</td>
-                <td>
-                  <span class="badge bg-primary">${(r.respuestas || []).length}</span>
-                </td>
-                <td style="white-space: nowrap;">
-                  <button class="btn btn-primary btn-sm" data-ver="${r.id}">👁️ Ver</button>
-                  <button class="btn btn-warning btn-sm" data-edit="${r.id}">✏️</button>
-                  <button class="btn btn-success btn-sm" data-export="${r.id}">📥</button>
-                  <button class="btn btn-danger btn-sm" data-del="${r.id}">🗑️</button>
-                </td>
-              </tr>
-            `).join('')}
+            ${reportes.map(r => {
+              const tituloSeguro = escapeHTML(r.titulo || 'Reporte sin título');
+              return `
+                <tr>
+                  <td><strong>${tituloSeguro}</strong></td>
+                  <td>${escapeHTML(r.dirigidoA || '')}</td>
+                  <td>${r.indicador ? escapeHTML(GERENCIAS.find(g => g.id === r.indicador)?.corto || r.indicador) : '—'}</td>
+                  <td>${(r.preguntas || []).length}</td>
+                  <td>
+                    <span class="badge bg-primary">${(r.respuestas || []).length}</span>
+                  </td>
+                  <td style="white-space: nowrap;">
+                    <button class="btn btn-primary btn-sm" data-ver="${r.id}"
+                            aria-label="Ver respuestas del reporte ${tituloSeguro}">👁️</button>
+                    <button class="btn btn-warning btn-sm" data-edit="${r.id}"
+                            aria-label="Editar reporte ${tituloSeguro}">✏️</button>
+                    <button class="btn btn-success btn-sm" data-export="${r.id}"
+                            aria-label="Exportar respuestas del reporte ${tituloSeguro}">📥</button>
+                    <button class="btn btn-danger btn-sm" data-del="${r.id}"
+                            aria-label="Eliminar reporte ${tituloSeguro}">🗑️</button>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       </div>

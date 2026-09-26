@@ -253,5 +253,70 @@ service cloud.firestore {
       );
     }
 
+    /* ---------- CONTADORES (códigos únicos) ---------- */
+    // Solo para el sistema de códigos VIV-/BRG-. Cualquier usuario
+    // autenticado puede incrementar el contador (necesario para crear
+    // viveros/brigadas), pero NO puede resetearlo hacia atrás ni borrarlo.
+    match /contadores/{tipo} {
+      allow get: if isAuth();
+
+      allow create: if isAuth()
+                    && request.resource.data.ultimo is number
+                    && request.resource.data.ultimo > 0;
+
+      // Solo se permite incrementar. Nunca retroceder ni mantener igual.
+      allow update: if isAuth()
+                    && request.resource.data.ultimo is number
+                    && request.resource.data.ultimo > resource.data.ultimo;
+
+      // Protección: nadie puede borrar el contador (evita reset).
+      allow delete: if false;
+    }
+
   }
+    /* ---------- FORMACIONES (Núcleo de Formación) ---------- */
+    // Colección para cursos, talleres, diplomados y otras actividades
+    // educativas. Cada documento tiene un `codigoUnico` (FRM-XXXXXX)
+    // generado con transacción atómica sobre /contadores/formaciones.
+    //
+    // Permisos:
+    //   - control:                          todo
+    //   - reporte_nacional + Formación:    crear/editar
+    //   - visor_nacional:                  solo lectura
+    //   - dashboard_nacional + Formación:  solo lectura
+    //   - dashboard_estadal:               solo lectura (su estado)
+    match /formaciones/{id} {
+      allow get: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esReporteNacional()   && miGerencia() == 'Formación') ||
+        (esDashboardNacional() && miGerencia() == 'Formación') ||
+        esDashboardEstadal()
+      );
+
+      allow list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        (esReporteNacional()   && miGerencia() == 'Formación') ||
+        (esDashboardNacional() && miGerencia() == 'Formación') ||
+        esDashboardEstadal()
+      );
+
+      // Crear/editar: control o reporte_nacional con gerencia Formación.
+      // Validación mínima del schema para evitar docs basura.
+      allow create: if isAuth()
+                    && (esControl() || (esReporteNacional() && miGerencia() == 'Formación'))
+                    && request.resource.data.codigoUnico is string
+                    && request.resource.data.codigoUnico.matches('^FRM-[0-9]{6}$')
+                    && request.resource.data.titulo is string
+                    && request.resource.data.titulo.size() > 0
+                    && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
+
+      allow update: if isAuth()
+                    && (esControl() || (esReporteNacional() && miGerencia() == 'Formación'))
+                    && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
+
+      // Borrar: solo control.
+      allow delete: if esControl();
+    }
 }

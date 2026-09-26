@@ -1,4 +1,4 @@
-const CACHE = 'mision-arbol-v24';
+const CACHE = 'mision-arbol-v25';
 const ASSETS = [
   '/',
   '/index.html',
@@ -17,6 +17,7 @@ const ASSETS = [
   '/js/viveros.js',
   '/js/bancosTierra.js',
   '/js/brigadas.js',
+  '/js/formaciones.js',
   '/js/reportesCumplimiento.js',
   '/js/reportesEspeciales.js'
 ];
@@ -43,14 +44,19 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
-  if (e.request.url.includes('firestore.googleapis.com')) return;
-  if (e.request.url.includes('identitytoolkit')) return;
-  if (e.request.url.includes('firebase')) return;
-  if (e.request.url.includes('gstatic.com')) return;
+
+  const DOMINIOS_EXTERNOS = [
+    'googleapis.com',
+    'firebaseio.com',
+    'firebaseapp.com',
+    'gstatic.com',
+    'jsdelivr.net',
+    'cdnjs.cloudflare.com',
+    'i.ibb.co'
+  ];
+
+  if (DOMINIOS_EXTERNOS.some(d => e.request.url.includes(d))) return;
   if (e.request.url.includes('chart.js')) return;
-  if (e.request.url.includes('jsdelivr')) return;
-  if (e.request.url.includes('cdnjs')) return;
-  if (e.request.url.includes('i.ibb.co')) return;
 
   e.respondWith(
     caches.match(e.request).then(cached => {

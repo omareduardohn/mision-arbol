@@ -17,7 +17,7 @@
 
 import {
   collection, addDoc, getDocs, query, where, doc, updateDoc, deleteDoc,
-  serverTimestamp, getDoc
+  serverTimestamp, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { toast, loader, setBotonCargando } from "./auth.js";
@@ -48,6 +48,31 @@ function usuarioPuedeGestionar(perfil) {
   if (perfil.rol === 'control') return true;
   if (perfil.rol === 'reporte_nacional' && perfil.gerencia === 'Producción') return true;
   return false;
+}
+
+/* ==================== CÓDIGO ÚNICO ==================== */
+
+/**
+ * Genera un código único VIV-XXXXXX usando una transacción atómica
+ * sobre /contadores/viveros. Si dos usuarios crean al mismo tiempo,
+ * Firestore serializa las transacciones y no se duplican números.
+ *
+ * @returns {Promise<string>} Ej: "VIV-000042"
+ */
+async function generarCodigoUnicoVivero() {
+  const contadorRef = doc(db, 'contadores', 'viveros');
+  const nuevo = await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(contadorRef);
+    const ultimo = snap.exists() ? (Number(snap.data().ultimo) || 0) : 0;
+    const siguiente = ultimo + 1;
+    transaction.set(
+      contadorRef,
+      { ultimo: siguiente, actualizado: serverTimestamp() },
+      { merge: true }
+    );
+    return siguiente;
+  });
+  return `VIV-${String(nuevo).padStart(6, '0')}`;
 }
 
 /* ==================== CARGA PRINCIPAL ==================== */
@@ -322,8 +347,12 @@ async function guardarVivero() {
       payload.creado = serverTimestamp();
       payload.creadoPor = perfil.uid;
       payload.creadoPorNombre = perfil.nombre || perfil.email;
+      // 🔑 Código único: se genera justo antes de crear el doc.
+      // Si el addDoc falla después, el número se "quema" (no se reutiliza),
+      // lo cual es aceptable — solo necesitamos unicidad, no secuencia perfecta.
+      payload.codigoUnico = await generarCodigoUnicoVivero();
       await addDoc(collection(db, 'viveros'), payload);
-      toast('Vivero registrado');
+      toast('Vivero registrado: ' + payload.codigoUnico);
     }
     cerrarFormulario();
   } catch (e) {
@@ -344,13 +373,11 @@ async function cargarListaViveros(perfil) {
   try {
     // Filtro según rol:
     // - control: todos
-    // - reporte_nacional (Producción): solo los de su estado (o todos los que vea por regla)
+    // - reporte_nacional (Producción): solo viveros del mismo estado
     let ref = collection(db, 'viveros');
     let q = ref;
     if (perfil.rol === 'reporte_nacional' && perfil.estado) {
-      // Los viveros de su estado (si los tuviera asignados)
-      // Por ahora mostramos todos los que la regla de Firestore permita
-      q = ref;
+      q = query(ref, where('ubicacion.estado', '==', perfil.estado));
     }
     const snap = await getDocs(q);
 
@@ -380,6 +407,7 @@ async function cargarListaViveros(perfil) {
 
       return `
         <tr>
+          <td style="font-size: 11px; color: #666; font-family: monospace;">${escapeHTML(v.codigoUnico || '—')}</td>
           <td><strong>${nombreSeguro}</strong></td>
           <td style="font-size: 12px;">${escapeHTML(v.tipo || '')}</td>
           <td style="font-size: 12px;">${escapeHTML(ubicTexto)}</td>
@@ -402,6 +430,7 @@ async function cargarListaViveros(perfil) {
         <table class="tabla-dashboard">
           <thead>
             <tr>
+              <th>Código</th>
               <th>Nombre</th>
               <th>Tipo</th>
               <th>Ubicación</th>

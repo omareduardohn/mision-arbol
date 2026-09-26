@@ -18,10 +18,11 @@ const MENUS = {
     { panel: 'panel-control',            subpanel: 'subpanel-descargas',            icono: 'fas fa-download',       texto: 'Descargas y Control' },
     { panel: 'panel-control',            subpanel: 'subpanel-reportes-especiales',  icono: 'fas fa-file-alt',       texto: 'Reportes Especiales' },
     { panel: 'panel-control',            subpanel: 'subpanel-admin-usuarios',       icono: 'fas fa-users-cog',      texto: 'Administrar Usuarios', badgeId: 'pendingCount' },
-    { panel: 'panel-viveros',            icono: 'fas fa-warehouse',    texto: 'Viveros' },
-    { panel: 'panel-bancos-tierra',      icono: 'fas fa-mountain',     texto: 'Bancos de Tierra' },
-    { panel: 'panel-brigadas',           icono: 'fas fa-users',        texto: 'Brigadas' },
-    { panel: 'panel-dashboard-nacional', icono: 'fas fa-chart-line',   texto: 'Dashboard Nacional' }
+    { panel: 'panel-viveros',            icono: 'fas fa-warehouse',        texto: 'Viveros' },
+    { panel: 'panel-bancos-tierra',      icono: 'fas fa-mountain',         texto: 'Bancos de Tierra' },
+    { panel: 'panel-brigadas',           icono: 'fas fa-users',            texto: 'Brigadas' },
+    { panel: 'panel-formaciones',        icono: 'fas fa-graduation-cap',   texto: 'Formaciones' },
+    { panel: 'panel-dashboard-nacional', icono: 'fas fa-chart-line',       texto: 'Dashboard Nacional' }
   ],
   visor_nacional: [
     { panel: 'panel-dashboard-nacional', icono: 'fas fa-chart-line', texto: 'Dashboard Nacional' }
@@ -51,9 +52,10 @@ const MENUS = {
  * ven la información dentro del dashboard.
  */
 const MODULOS_POR_GERENCIA = {
-  'Producción':   { panel: 'panel-viveros',        icono: 'fas fa-warehouse', texto: 'Viveros' },
-  'Plantación':   { panel: 'panel-bancos-tierra',  icono: 'fas fa-mountain',  texto: 'Bancos de Tierra' },
-  'Organización': { panel: 'panel-brigadas',       icono: 'fas fa-users',     texto: 'Brigadas' }
+  'Producción':   { panel: 'panel-viveros',        icono: 'fas fa-warehouse',      texto: 'Viveros' },
+  'Plantación':   { panel: 'panel-bancos-tierra',  icono: 'fas fa-mountain',       texto: 'Bancos de Tierra' },
+  'Organización': { panel: 'panel-brigadas',       icono: 'fas fa-users',          texto: 'Brigadas' },
+  'Formación':    { panel: 'panel-formaciones',    icono: 'fas fa-graduation-cap', texto: 'Formaciones' }
 };
 
 const TITULOS = {
@@ -63,7 +65,8 @@ const TITULOS = {
   'panel-dashboard-estadal':  'Dashboard Estadal',
   'panel-dashboard-nacional': 'Dashboard Nacional',
   'panel-personal':           'Mi Personal',
-  'panel-planificacion':      'Planificación de Actividades'
+  'panel-planificacion':      'Planificación de Actividades',
+  'panel-formaciones':        'Núcleo de Formación'
 };
 
 export function construirMenu(rol, perfil) {
@@ -205,6 +208,11 @@ async function cargarContenidoPanel(panelId) {
     case 'panel-planificacion': {
       const { cargarPanelPlanificacion } = await import('./planificacion.js');
       cargarPanelPlanificacion();
+      break;
+    }
+        case 'panel-formaciones': {
+      const { cargarPanelFormaciones } = await import('./formaciones.js');
+      cargarPanelFormaciones();
       break;
     }
   }

@@ -20,6 +20,8 @@ let unsubPersonalDashboard = null;
 let unsubViveros = null;
 let unsubBancos = null;
 let unsubBrigadas = null;
+let unsubPlanificacion = null;
+let unsubFormaciones = null;
 let chartNacional = null;
 let chartRecursos = null;
 let chartBrigadasMunicipio = null;
@@ -37,12 +39,15 @@ let personalCache = [];
 let viverosCache = [];
 let bancosCache = [];
 let brigadasCache = [];
+let planificacionCache = [];
+let formacionesCache = [];
 
 /* ==================== FILTROS GLOBALES ==================== */
 const filtrosGlobales = {
   fechaDesde: '',
   fechaHasta: '',
-  gerencia: ''
+  gerencia: '',
+  rangoRapido: ''
 };
 let activeDashboardId = 'dashboardNacionalContent';
 let paginaConsejos = 1;
@@ -245,6 +250,34 @@ function brigadasEnTerritorio(filtro) {
   return recursosEnTerritorio(brigadasCache, filtro);
 }
 
+function planificacionEnTerritorio(filtro) {
+  const estado = normalizeText(filtro.estado);
+  const municipio = normalizeText(filtro.municipio);
+  const parroquia = normalizeText(filtro.parroquia);
+
+  return planificacionCache.filter((p) => {
+    const ub = p?.ubicacion || {};
+    if (estado && normalizeText(ub.estado) !== estado) return false;
+    if (municipio && normalizeText(ub.municipio) !== municipio) return false;
+    if (parroquia && normalizeText(ub.parroquia) !== parroquia) return false;
+    return true;
+  });
+}
+
+function formacionesEnTerritorio(filtro) {
+  const estado = normalizeText(filtro.estado);
+  const municipio = normalizeText(filtro.municipio);
+  const parroquia = normalizeText(filtro.parroquia);
+
+  return formacionesCache.filter((f) => {
+    const ub = f?.ubicacion || {};
+    if (estado && normalizeText(ub.estado) !== estado) return false;
+    if (municipio && normalizeText(ub.municipio) !== municipio) return false;
+    if (parroquia && normalizeText(ub.parroquia) !== parroquia) return false;
+    return true;
+  });
+}
+
 /**
  * Devuelve { total, activos } de una lista de recursos según su campo `estatus`.
  */
@@ -395,6 +428,7 @@ function actividadesPorPersona(filtro = {}) {
  * @param {Object} perfil
  * @returns {string}
  */
+
 function renderFiltrosGlobalesHTML(perfil) {
   // ¿Puede filtrar por gerencia?
   // - control: sí
@@ -403,9 +437,17 @@ function renderFiltrosGlobalesHTML(perfil) {
   // - dashboard_estadal: sí (puede ver todas las gerencias en su estado)
   const puedeFiltrarGerencia = ['control', 'visor_nacional', 'dashboard_estadal'].includes(perfil?.rol);
 
-  const gerencias = ['Organización', 'Producción', 'Formación', 'Plantación', 'Políticas'];
+  // El selector de estado solo aparece para usuarios que pueden navegar entre estados.
+  // dashboard_estadal ya está bloqueado a su propio estado; no aplica.
+  const puedeCambiarEstado = ['control', 'visor_nacional', 'dashboard_nacional'].includes(perfil?.rol);
 
-  const hayFiltroActivo = filtrosGlobales.fechaDesde || filtrosGlobales.fechaHasta || filtrosGlobales.gerencia;
+  const gerencias = ['Organización', 'Producción', 'Formación', 'Plantación', 'Políticas'];
+  const rangoActivo = filtrosGlobales.rangoRapido || '';
+
+  const hayFiltroActivo = filtrosGlobales.fechaDesde
+    || filtrosGlobales.fechaHasta
+    || filtrosGlobales.gerencia
+    || filtrosGlobales.rangoRapido;
 
   return `
     <div class="subpanel" style="
@@ -425,7 +467,29 @@ function renderFiltrosGlobalesHTML(perfil) {
         ` : ''}
       </div>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr ${puedeFiltrarGerencia ? '1fr' : ''}; gap: 12px; align-items: end;">
+            ${puedeCambiarEstado ? `
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label style="font-size: 12px; color: #666;">Estado (navegación rápida)</label>
+          <select id="filtroEstado">
+            <option value="">Todos los estados</option>
+            ${ESTADOS_VENEZUELA.map(e => `
+              <option value="${escapeHTML(e)}" ${e === estadoActual ? 'selected' : ''}>${escapeHTML(e)}</option>
+            `).join('')}
+          </select>
+        </div>
+      ` : ''}
+
+      <div style="display: grid; grid-template-columns: ${puedeFiltrarGerencia ? '1.3fr 1fr 1fr 1fr' : '1.3fr 1fr 1fr'}; gap: 12px; align-items: end;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 12px; color: #666;">Rango</label>
+          <select id="filtroRangoRapido">
+            <option value="" ${rangoActivo === '' ? 'selected' : ''}>Personalizado</option>
+            <option value="7d" ${rangoActivo === '7d' ? 'selected' : ''}>Últimos 7 días</option>
+            <option value="30d" ${rangoActivo === '30d' ? 'selected' : ''}>Últimos 30 días</option>
+            <option value="90d" ${rangoActivo === '90d' ? 'selected' : ''}>Últimos 90 días</option>
+            <option value="1y" ${rangoActivo === '1y' ? 'selected' : ''}>Último año</option>
+          </select>
+        </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label style="font-size: 12px; color: #666;">Desde</label>
           <input type="date" id="filtroFechaDesde" value="${filtrosGlobales.fechaDesde}">
@@ -451,6 +515,44 @@ function renderFiltrosGlobalesHTML(perfil) {
 }
 
 /**
+ * Convierte el valor del selector de rango rápido ('7d', '30d', '90d', '1y')
+ * en un par de fechas ISO (YYYY-MM-DD) que se asignan a filtrosGlobales.
+ *
+ * @param {string} valor  '7d' | '30d' | '90d' | '1y' | ''
+ */
+function aplicarRangoRapido(valor) {
+  if (!valor) {
+    filtrosGlobales.rangoRapido = '';
+    return;
+  }
+
+  const hoy = new Date();
+  let desde = null;
+
+  switch (valor) {
+    case '7d':  desde = new Date(hoy); desde.setDate(hoy.getDate() - 7);  break;
+    case '30d': desde = new Date(hoy); desde.setDate(hoy.getDate() - 30); break;
+    case '90d': desde = new Date(hoy); desde.setDate(hoy.getDate() - 90); break;
+    case '1y':  desde = new Date(hoy); desde.setFullYear(hoy.getFullYear() - 1); break;
+    default:
+      filtrosGlobales.rangoRapido = '';
+      return;
+  }
+
+  // Formato YYYY-MM-DD local (no UTC, para no perder un día por zona horaria)
+  const fmt = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  filtrosGlobales.fechaDesde = fmt(desde);
+  filtrosGlobales.fechaHasta = fmt(hoy);
+  filtrosGlobales.rangoRapido = valor;
+}
+
+/**
  * Conecta los inputs de filtros para que actualicen el estado global y
  * re-rendericen el dashboard.
  */
@@ -458,31 +560,73 @@ function wireFiltrosGlobales() {
   const inputDesde = document.getElementById('filtroFechaDesde');
   const inputHasta = document.getElementById('filtroFechaHasta');
   const inputGer = document.getElementById('filtroGerencia');
+  const selectRango = document.getElementById('filtroRangoRapido');
+  const selectEstado = document.getElementById('filtroEstado');
   const btnLimpiar = document.getElementById('btnLimpiarFiltros');
 
+  // Rango rápido
+  selectRango?.addEventListener('change', () => {
+    aplicarRangoRapido(selectRango.value);
+    actualizarBarraFiltros();
+    renderJerarquia();
+  });
+
+  // Desde manual → reset del rango rápido
   inputDesde?.addEventListener('change', () => {
     filtrosGlobales.fechaDesde = inputDesde.value || '';
-    renderJerarquia();
-    // Re-render de la barra de filtros para mostrar/ocultar "Limpiar"
+    filtrosGlobales.rangoRapido = '';
     actualizarBarraFiltros();
+    renderJerarquia();
   });
 
+  // Hasta manual → reset del rango rápido
   inputHasta?.addEventListener('change', () => {
     filtrosGlobales.fechaHasta = inputHasta.value || '';
-    renderJerarquia();
+    filtrosGlobales.rangoRapido = '';
     actualizarBarraFiltros();
+    renderJerarquia();
   });
 
+  // Gerencia
   inputGer?.addEventListener('change', () => {
     filtrosGlobales.gerencia = inputGer.value || '';
-    renderJerarquia();
     actualizarBarraFiltros();
+    renderJerarquia();
   });
 
+  // Selector rápido de estado (navegación)
+  selectEstado?.addEventListener('change', () => {
+    const nuevoEstado = selectEstado.value || null;
+    paginaConsejos = 1;
+    if (!nuevoEstado) {
+      // Volver al nivel superior
+      estadoActual = null;
+      municipioActual = null;
+      parroquiaActual = null;
+      comunaActual = null;
+      consejoActual = null;
+    } else {
+      // Saltar directo al estado elegido
+      estadoActual = nuevoEstado;
+      municipioActual = null;
+      parroquiaActual = null;
+      comunaActual = null;
+      consejoActual = null;
+      // Limpiar búsquedas jerárquicas hijas para no arrastrar filtros viejos
+      busquedasJerarquia.municipio = '';
+      busquedasJerarquia.parroquia = '';
+      busquedasJerarquia.comuna = '';
+      busquedasJerarquia.consejo = '';
+    }
+    renderJerarquia();
+  });
+
+  // Limpiar todo
   btnLimpiar?.addEventListener('click', () => {
     filtrosGlobales.fechaDesde = '';
     filtrosGlobales.fechaHasta = '';
     filtrosGlobales.gerencia = '';
+    filtrosGlobales.rangoRapido = '';
     actualizarBarraFiltros();
     renderJerarquia();
   });
@@ -523,6 +667,49 @@ function montarFiltrosGlobales(activeId, filtrosId, perfil) {
   wireFiltrosGlobales();
 }
 
+function renderBloquePlanificacion(filtro) {
+  const planificaciones = planificacionEnTerritorio(filtro);
+  if (planificaciones.length === 0) return '';
+
+  let total = planificaciones.length;
+  let ejecutadas = 0;
+  let pendientes = 0;
+  let canceladas = 0;
+  let totalActividades = 0;
+  let totalActividadesEjecutadas = 0;
+
+  planificaciones.forEach(p => {
+    const estado = p.estado || 'pendiente';
+    if (estado === 'ejecutada') ejecutadas++;
+    else if (estado === 'cancelada') canceladas++;
+    else pendientes++;
+
+    const acts = Array.isArray(p.actividades) ? p.actividades : [];
+    totalActividades += acts.length;
+    acts.forEach(a => { if (a.ejecutada === true) totalActividadesEjecutadas++; });
+  });
+
+  const pctPlan = total > 0 ? Math.round((ejecutadas / total) * 100) : 0;
+  const pctActs = totalActividades > 0 ? Math.round((totalActividadesEjecutadas / totalActividades) * 100) : 0;
+
+  return `
+    <div class="subpanel" style="margin-top: 12px; background: #f9fdf7;">
+      <h3 style="color: var(--verde-medio); margin-bottom: 10px;">
+        📅 Planificación en este territorio
+      </h3>
+      <div class="mini-panel-resumen">
+        <div class="kpi-resumen total">📋 ${total} planificaciones</div>
+        <div class="kpi-resumen activo">✅ ${ejecutadas} ejecutadas</div>
+        <div class="kpi-resumen inactivo">⏳ ${pendientes} pendientes</div>
+        ${canceladas > 0 ? `<div class="kpi-resumen inactivo">❌ ${canceladas} canceladas</div>` : ''}
+        <div class="kpi-resumen total">📝 ${totalActividades} actividades</div>
+        <div class="kpi-resumen porcentaje">${pctPlan}% planificaciones ejecutadas</div>
+        <div class="kpi-resumen porcentaje">${pctActs}% actividades ejecutadas</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderResumenNivel(filtro = {}) {
   const resumen = contarActivos(filtro);
   const porcentaje = resumen.total ? Math.round((resumen.activos / resumen.total) * 100) : 0;
@@ -536,6 +723,8 @@ function renderResumenNivel(filtro = {}) {
 
   // Personal con actividades
   const personal = actividadesPorPersona(filtro);
+  const personalActivo = personalEnTerritorio(filtro);
+  const formaciones = formacionesEnTerritorio(filtro);
 
   return `
     <div class="mini-panel-resumen">
@@ -553,8 +742,66 @@ function renderResumenNivel(filtro = {}) {
         ${bri.total > 0 ? `<div class="kpi-resumen activo">🎽 ${bri.activos}/${bri.total} brigadas activas</div>` : ''}
       </div>
     ` : ''}
-    ${renderBloquePersonal(personal, filtro)}
+    ${renderBloquePlanificacion(filtro)}
+    ${renderBloqueFormaciones(filtro)}
+    ${renderBloquePersonal(personal, filtro, personalActivo)}
     ${renderGraficasTerritoriales(filtro)}
+  `;
+}
+
+function renderBloqueFormaciones(filtro) {
+  const formaciones = formacionesEnTerritorio(filtro);
+  if (formaciones.length === 0) return '';
+
+  let total = formaciones.length;
+  let planificadas = 0;
+  let enCurso = 0;
+  let finalizadas = 0;
+  let canceladas = 0;
+  let totalHoras = 0;
+  let totalParticipantes = 0;
+
+  const porModalidad = { Presencial: 0, Virtual: 0, Mixta: 0 };
+
+  formaciones.forEach(f => {
+    const e = f.estatus || 'planificada';
+    if (e === 'planificada') planificadas++;
+    else if (e === 'en_curso') enCurso++;
+    else if (e === 'finalizada') finalizadas++;
+    else if (e === 'cancelada') canceladas++;
+
+    totalHoras += Number(f.duracionHoras) || 0;
+    totalParticipantes += Number(f.participantes?.total) || 0;
+
+    const mod = f.modalidad || 'Presencial';
+    if (porModalidad[mod] !== undefined) porModalidad[mod]++;
+  });
+
+  const pctFinalizadas = total > 0 ? Math.round((finalizadas / total) * 100) : 0;
+
+  return `
+    <div class="subpanel" style="margin-top: 12px; background: #f9fdf7;">
+      <h3 style="color: var(--verde-medio); margin-bottom: 10px;">
+        🎓 Formaciones en este territorio
+      </h3>
+      <div class="mini-panel-resumen">
+        <div class="kpi-resumen total">📋 ${total} formaciones</div>
+        <div class="kpi-resumen activo">✅ ${finalizadas} finalizadas</div>
+        ${enCurso > 0 ? `<div class="kpi-resumen total">🔄 ${enCurso} en curso</div>` : ''}
+        <div class="kpi-resumen inactivo">⏳ ${planificadas} planificadas</div>
+        ${canceladas > 0 ? `<div class="kpi-resumen inactivo">❌ ${canceladas} canceladas</div>` : ''}
+        <div class="kpi-resumen total">⏱️ ${totalHoras}h acumuladas</div>
+        <div class="kpi-resumen porcentaje">${pctFinalizadas}% finalizadas</div>
+        <div class="kpi-resumen porcentaje">🎯 ${totalParticipantes} participantes</div>
+      </div>
+      ${(porModalidad.Presencial + porModalidad.Virtual + porModalidad.Mixta) > 0 ? `
+        <div class="mini-panel-resumen" style="margin-top: 8px;">
+          ${porModalidad.Presencial > 0 ? `<div class="kpi-resumen activo">Presencial: ${porModalidad.Presencial}</div>` : ''}
+          ${porModalidad.Virtual > 0 ? `<div class="kpi-resumen activo">Virtual: ${porModalidad.Virtual}</div>` : ''}
+          ${porModalidad.Mixta > 0 ? `<div class="kpi-resumen activo">Mixta: ${porModalidad.Mixta}</div>` : ''}
+        </div>
+      ` : ''}
+    </div>
   `;
 }
 
@@ -633,31 +880,89 @@ function renderSemaforoHTML(semaforo) {
   `;
 }
 
-function renderBloquePersonal(personal, filtro) {
-  if (!personal || personal.length === 0) return '';
+function renderBloquePersonal(personalActividades, filtro, personalActivo) {
+  const tieneActividades = personalActividades && personalActividades.length > 0;
+  const activos = personalActivo || [];
 
-  const top = personal.slice(0, 10);
+  if (!tieneActividades && activos.length === 0) return '';
 
-  const filas = top.map(p => `
-    <tr>
-      <td style="font-weight: 600;">${escapeHTML(p.nombre)}</td>
-      <td style="text-align: center;">
-        <span style="background: var(--primary-gradient); color: #fff; padding: 3px 12px; border-radius: 12px; font-weight: 700; font-size: 12px;">
-          ${p.actividades}
-        </span>
-      </td>
-      <td style="font-size: 12px; color: #666;">${escapeHTML(p.ultimaFecha || '—')}</td>
-    </tr>
-  `).join('');
+  // ── KPIs de personal activo ──
+  const totalActivos = activos.length;
 
-  const resto = personal.length - top.length;
+  // Top 5 cargos
+  const porCargo = {};
+  activos.forEach(p => {
+    const c = (p?.cargo || 'Sin cargo').trim() || 'Sin cargo';
+    porCargo[c] = (porCargo[c] || 0) + 1;
+  });
+  const topCargos = Object.entries(porCargo)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
 
-  return `
-    <div class="subpanel" style="margin-top: 12px; background: #f9fdf7;">
-      <h3 style="color: var(--verde-medio); margin-bottom: 10px;">
-        👥 Personal con actividades en este territorio (${personal.length})
-      </h3>
-      <div class="table-container" style="max-height: 320px;">
+  // Rango etario (si tienen fechaNacimiento)
+  const hoy = new Date();
+  const conFecha = activos.filter(p => p?.fechaNacimiento);
+  let rangosEdad = null;
+  if (conFecha.length > 0) {
+    const buckets = { '18-25': 0, '26-35': 0, '36-45': 0, '46-60': 0, '60+': 0, 'Sin edad': 0 };
+    activos.forEach(p => {
+      const fn = p?.fechaNacimiento;
+      if (!fn) { buckets['Sin edad']++; return; }
+      let fecha;
+      try {
+        fecha = typeof fn?.toDate === 'function' ? fn.toDate() : new Date(fn);
+      } catch (_) { buckets['Sin edad']++; return; }
+      if (!fecha || isNaN(fecha)) { buckets['Sin edad']++; return; }
+      const edad = Math.floor((hoy - fecha) / (1000 * 60 * 60 * 24 * 365.25));
+      if (edad < 26) buckets['18-25']++;
+      else if (edad < 36) buckets['26-35']++;
+      else if (edad < 46) buckets['36-45']++;
+      else if (edad <= 60) buckets['46-60']++;
+      else buckets['60+']++;
+    });
+    rangosEdad = buckets;
+  }
+
+  // ── HTML de KPIs ──
+  const kpisHTML = `
+    <div class="mini-panel-resumen" style="margin-top: 8px;">
+      <div class="kpi-resumen total">👥 ${totalActivos} personal activo</div>
+      ${topCargos.map(([cargo, cant]) =>
+        `<div class="kpi-resumen activo">${escapeHTML(cargo)}: ${cant}</div>`
+      ).join('')}
+    </div>
+  `;
+
+  const edadesHTML = rangosEdad ? `
+    <div class="mini-panel-resumen" style="margin-top: 8px;">
+      <div class="kpi-resumen total" style="font-weight: 700;">🎂 Rango etario</div>
+      ${rangosEdad['18-25'] > 0 ? `<div class="kpi-resumen activo">18–25: ${rangosEdad['18-25']}</div>` : ''}
+      ${rangosEdad['26-35'] > 0 ? `<div class="kpi-resumen activo">26–35: ${rangosEdad['26-35']}</div>` : ''}
+      ${rangosEdad['36-45'] > 0 ? `<div class="kpi-resumen activo">36–45: ${rangosEdad['36-45']}</div>` : ''}
+      ${rangosEdad['46-60'] > 0 ? `<div class="kpi-resumen activo">46–60: ${rangosEdad['46-60']}</div>` : ''}
+      ${rangosEdad['60+'] > 0 ? `<div class="kpi-resumen activo">60+: ${rangosEdad['60+']}</div>` : ''}
+      ${rangosEdad['Sin edad'] > 0 ? `<div class="kpi-resumen inactivo">Sin fecha: ${rangosEdad['Sin edad']}</div>` : ''}
+    </div>
+  ` : '';
+
+  // ── Tabla de personal con actividades (la que ya existía) ──
+  let tablaHTML = '';
+  if (tieneActividades) {
+    const top = personalActividades.slice(0, 10);
+    const filas = top.map(p => `
+      <tr>
+        <td style="font-weight: 600;">${escapeHTML(p.nombre)}</td>
+        <td style="text-align: center;">
+          <span style="background: var(--primary-gradient); color: #fff; padding: 3px 12px; border-radius: 12px; font-weight: 700; font-size: 12px;">
+            ${p.actividades}
+          </span>
+        </td>
+        <td style="font-size: 12px; color: #666;">${escapeHTML(p.ultimaFecha || '—')}</td>
+      </tr>
+    `).join('');
+    const resto = personalActividades.length - top.length;
+    tablaHTML = `
+      <div class="table-container" style="max-height: 320px; margin-top: 12px;">
         <table class="tabla-dashboard">
           <thead>
             <tr>
@@ -670,6 +975,18 @@ function renderBloquePersonal(personal, filtro) {
         </table>
       </div>
       ${resto > 0 ? `<p style="font-size: 11px; color: #888; margin-top: 8px; text-align: center;">… y ${resto} persona${resto !== 1 ? 's' : ''} más</p>` : ''}
+    `;
+  }
+
+  return `
+    <div class="subpanel" style="margin-top: 12px; background: #f9fdf7;">
+      <h3 style="color: var(--verde-medio); margin-bottom: 10px;">
+        👥 Personal ${tieneActividades ? 'con actividades en este territorio' : 'activo en este territorio'}
+        ${tieneActividades ? `(${personalActividades.length})` : ''}
+      </h3>
+      ${kpisHTML}
+      ${edadesHTML}
+      ${tablaHTML}
     </div>
   `;
 }
@@ -1591,13 +1908,26 @@ function renderConsejoDetalle(estado, municipio, parroquia, comuna, consejo) {
   }), 80);
 }
 
+/**
+ * Mantiene el <select id="filtroEstado"> sincronizado con la variable
+ * global estadoActual. Se llama desde renderJerarquia() cada vez que
+ * el drill-down cambia (por click en tarjeta, breadcrumb, o el propio select).
+ */
+function sincronizarSelectorEstado() {
+  const sel = document.getElementById('filtroEstado');
+  if (!sel) return;
+  sel.value = estadoActual || '';
+}
+
 function renderJerarquia() {
   const perfil = window.__perfil || {};
   const rol = perfil.rol || 'control';
 
   if (rol === 'dashboard_estadal' && !estadoActual && perfil.estado) {
     estadoActual = perfil.estado;
-  }
+  } 
+  
+  sincronizarSelectorEstado();
 
   if (!estadoActual) {
     renderEstados();
@@ -1753,12 +2083,9 @@ export async function cargarDashboardNacional() {
  * leer viveros), la suscripción falla silenciosamente sin romper las demás.
  */
 function suscribirRecursos(perfil) {
-  // Qué recursos le corresponden a este usuario:
-  // - control y visor_nacional → los 3
-  // - dashboard_nacional → solo el de su gerencia
-  // - otros roles → ninguno
   const rol = perfil?.rol;
   const gerencia = perfil?.gerencia;
+  const estado = perfil?.estado;
 
   const verViveros = rol === 'control' || rol === 'visor_nacional'
     || (rol === 'dashboard_nacional' && gerencia === 'Producción');
@@ -1773,6 +2100,7 @@ function suscribirRecursos(perfil) {
       viverosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderJerarquia();
     }, (err) => {
+      console.warn('[Dashboard] viveros:', err.code);
       viverosCache = [];
     });
   } else {
@@ -1785,6 +2113,7 @@ function suscribirRecursos(perfil) {
       bancosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderJerarquia();
     }, (err) => {
+      console.warn('[Dashboard] bancosTierra:', err.code);
       bancosCache = [];
     });
   } else {
@@ -1797,10 +2126,65 @@ function suscribirRecursos(perfil) {
       brigadasCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderJerarquia();
     }, (err) => {
+      console.warn('[Dashboard] brigadas:', err.code);
       brigadasCache = [];
     });
   } else {
     brigadasCache = [];
+  }
+
+  // Planificación
+  // - control y visor_nacional → todas
+  // - dashboard_estadal → solo del estado del usuario
+  // - dashboard_nacional → solo de la gerencia del usuario
+  // - otros roles → no se suscribe
+  if (rol === 'control' || rol === 'visor_nacional') {
+    unsubPlanificacion = onSnapshot(collection(db, 'planificacion'), (snap) => {
+      planificacionCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderJerarquia();
+    }, (err) => {
+      console.warn('[Dashboard] planificacion:', err.code);
+      planificacionCache = [];
+    });
+  } else if (rol === 'dashboard_estadal' && estado) {
+    const q = query(collection(db, 'planificacion'), where('estadoUsuario', '==', estado));
+    unsubPlanificacion = onSnapshot(q, (snap) => {
+      planificacionCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderJerarquia();
+    }, (err) => {
+      console.warn('[Dashboard] planificacion (estadal):', err.code);
+      planificacionCache = [];
+    });
+  } else if (rol === 'dashboard_nacional' && gerencia) {
+    const q = query(collection(db, 'planificacion'), where('gerenciaUsuario', '==', gerencia));
+    unsubPlanificacion = onSnapshot(q, (snap) => {
+      planificacionCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderJerarquia();
+    }, (err) => {
+      console.warn('[Dashboard] planificacion (nacional):', err.code);
+      planificacionCache = [];
+    });
+  } else {
+    planificacionCache = [];
+  }
+    // Formaciones
+  // - control y visor_nacional → todas
+  // - dashboard_nacional + Formación → todas (o podría filtrar, pero por
+  //   simplicidad las traemos todas: son pocos registros)
+  // - otros roles → no se suscribe
+  const verFormaciones = rol === 'control' || rol === 'visor_nacional'
+    || (rol === 'dashboard_nacional' && gerencia === 'Formación');
+
+  if (verFormaciones) {
+    unsubFormaciones = onSnapshot(collection(db, 'formaciones'), (snap) => {
+      formacionesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderJerarquia();
+    }, (err) => {
+      console.warn('[Dashboard] formaciones:', err.code);
+      formacionesCache = [];
+    });
+  } else {
+    formacionesCache = [];
   }
 }
 
@@ -1817,6 +2201,8 @@ function limpiarSuscripcionesDashboard() {
   if (unsubViveros) { try { unsubViveros(); } catch (_) {} unsubViveros = null; }
   if (unsubBancos) { try { unsubBancos(); } catch (_) {} unsubBancos = null; }
   if (unsubBrigadas) { try { unsubBrigadas(); } catch (_) {} unsubBrigadas = null; }
+  if (unsubPlanificacion) { try { unsubPlanificacion(); } catch (_) {} unsubPlanificacion = null; }
+  if (unsubFormaciones) { try { unsubFormaciones(); } catch (_) {} unsubFormaciones = null; }
 }
 
 document.addEventListener('usuarioCerroSesion', limpiarSuscripcionesDashboard);
