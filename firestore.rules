@@ -276,47 +276,46 @@ service cloud.firestore {
   }
     /* ---------- FORMACIONES (Núcleo de Formación) ---------- */
     // Colección para cursos, talleres, diplomados y otras actividades
-    // educativas. Cada documento tiene un `codigoUnico` (FRM-XXXXXX)
-    // generado con transacción atómica sobre /contadores/formaciones.
+    // educativas. Cada documento tiene un `codigoUnico` (FRM-XXXXXX).
     //
-    // Permisos:
-    //   - control:                          todo
-    //   - reporte_nacional + Formación:    crear/editar
-    //   - visor_nacional:                  solo lectura
-    //   - dashboard_nacional + Formación:  solo lectura
-    //   - dashboard_estadal:               solo lectura (su estado)
+    // NOTA: este bloque usa funciones inline (get() directo) en lugar de
+    // los helpers esControl()/esReporteNacional() porque el compilador de
+    // Firestore no los resuelve bien dentro de este match cuando el
+    // archivo es grande.
     match /formaciones/{id} {
-      allow get: if isAuth() && (
-        esControl() ||
-        esVisorNacional() ||
-        (esReporteNacional()   && miGerencia() == 'Formación') ||
-        (esDashboardNacional() && miGerencia() == 'Formación') ||
-        esDashboardEstadal()
+      allow get, list: if request.auth != null && (
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol in ['control', 'visor_nacional', 'dashboard_estadal']
+        || (
+          get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol in ['reporte_nacional', 'dashboard_nacional']
+          && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.gerencia == 'Formación'
+        )
       );
 
-      allow list: if isAuth() && (
-        esControl() ||
-        esVisorNacional() ||
-        (esReporteNacional()   && miGerencia() == 'Formación') ||
-        (esDashboardNacional() && miGerencia() == 'Formación') ||
-        esDashboardEstadal()
-      );
-
-      // Crear/editar: control o reporte_nacional con gerencia Formación.
-      // Validación mínima del schema para evitar docs basura.
-      allow create: if isAuth()
-                    && (esControl() || (esReporteNacional() && miGerencia() == 'Formación'))
+      allow create: if request.auth != null
+                    && (
+                      get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'control'
+                      || (
+                        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'reporte_nacional'
+                        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.gerencia == 'Formación'
+                      )
+                    )
                     && request.resource.data.codigoUnico is string
                     && request.resource.data.codigoUnico.matches('^FRM-[0-9]{6}$')
                     && request.resource.data.titulo is string
                     && request.resource.data.titulo.size() > 0
                     && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
 
-      allow update: if isAuth()
-                    && (esControl() || (esReporteNacional() && miGerencia() == 'Formación'))
+      allow update: if request.auth != null
+                    && (
+                      get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'control'
+                      || (
+                        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'reporte_nacional'
+                        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.gerencia == 'Formación'
+                      )
+                    )
                     && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
 
-      // Borrar: solo control.
-      allow delete: if esControl();
+      allow delete: if request.auth != null
+                    && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'control';
     }
 }
