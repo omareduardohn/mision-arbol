@@ -578,7 +578,7 @@ export async function cargarTerritorio() {
   // si en el futuro este módulo importa loader de auth.js.
   const loaderEl = document.getElementById('loader');
   if (loaderEl) {
-    loaderEl.textContent = 'Cargando datos territoriales...';
+    loaderEl.textContent = 'Verificando caché territorial...';
     loaderEl.classList.remove('oculto');
   }
 
