@@ -8,6 +8,8 @@
 //     (MODULOS_POR_GERENCIA).
 //   - Construir el DOM del menú de forma segura (sin innerHTML con datos).
 //   - Cambiar de panel y delegar la carga al módulo correspondiente.
+//   - Filtrar subpaneles del panel-control según qué item del menú se
+//     haya clickeado (Descargas / Reportes Especiales / Admin Usuarios).
 //   - Exponer etiquetaRol() para mostrar el rol legible en la UI.
 //
 // El menú se construye al recibir el evento 'usuarioListo' disparado por
@@ -15,9 +17,9 @@
 
 const MENUS = {
   control: [
-    { panel: 'panel-control',            subpanel: 'subpanel-descargas',            icono: 'fas fa-download',       texto: 'Descargas y Control' },
-    { panel: 'panel-control',            subpanel: 'subpanel-reportes-especiales',  icono: 'fas fa-file-alt',       texto: 'Reportes Especiales' },
-    { panel: 'panel-control',            subpanel: 'subpanel-admin-usuarios',       icono: 'fas fa-users-cog',      texto: 'Administrar Usuarios', badgeId: 'pendingCount' },
+    { panel: 'panel-control',            subpanel: 'subpanel-descargas',           icono: 'fas fa-download',       texto: 'Descargas y Control' },
+    { panel: 'panel-control',            subpanel: 'subpanel-reportes-especiales', icono: 'fas fa-file-alt',       texto: 'Reportes Especiales' },
+    { panel: 'panel-control',            subpanel: 'subpanel-admin-usuarios',      icono: 'fas fa-users-cog',      texto: 'Administrar Usuarios', badgeId: 'pendingCount' },
     { panel: 'panel-viveros',            icono: 'fas fa-warehouse',        texto: 'Viveros' },
     { panel: 'panel-bancos-tierra',      icono: 'fas fa-mountain',         texto: 'Bancos de Tierra' },
     { panel: 'panel-brigadas',           icono: 'fas fa-users',            texto: 'Brigadas' },
@@ -48,8 +50,6 @@ const MENUS = {
 /**
  * Módulo específico que corresponde a cada gerencia.
  * Solo se inyecta en el menú de reporte_nacional.
- * visor_nacional y dashboard_nacional NO reciben botones;
- * ven la información dentro del dashboard.
  */
 const MODULOS_POR_GERENCIA = {
   'Producción':   { panel: 'panel-viveros',        icono: 'fas fa-warehouse',      texto: 'Viveros' },
@@ -66,7 +66,48 @@ const TITULOS = {
   'panel-dashboard-nacional': 'Dashboard Nacional',
   'panel-personal':           'Mi Personal',
   'panel-planificacion':      'Planificación de Actividades',
-  'panel-formaciones':        'Núcleo de Formación'
+  'panel-formaciones':        'Núcleo de Formación',
+  'panel-viveros':            'Gestión de Viveros',
+  'panel-bancos-tierra':      'Gestión de Bancos de Tierra',
+  'panel-brigadas':           'Gestión de Brigadas'
+};
+
+/**
+ * Subpaneles que viven dentro de `panel-control`.
+ * Cuando el usuario clickea uno de los 3 items del menú que apuntan a
+ * `panel-control`, se ocultan los otros 2 y se muestra solo el elegido.
+ * El resto de paneles no se ve afectado (muestran todos sus subpaneles).
+ */
+const SUBPANELES_CONTROL = [
+  'subpanel-descargas',
+  'subpanel-planificaciones',
+  'subpanel-reportes-especiales',
+  'subpanel-admin-usuarios'
+];
+
+/**
+ * Mapa: qué subpaneles del panel-control se muestran al seleccionar
+ * cada opción del menú.
+ *
+ * Nota: "Descargas y Control" agrupa DOS subpaneles (descargas + planificaciones)
+ * porque son conceptualmente parte de la misma sección de "descargas".
+ * Las otras opciones muestran solo su propio subpanel.
+ */
+const SUBPANELES_VISIBLES_POR_OPCION = {
+  'subpanel-descargas':            ['subpanel-descargas', 'subpanel-planificaciones'],
+  'subpanel-reportes-especiales':  ['subpanel-reportes-especiales'],
+  'subpanel-admin-usuarios':       ['subpanel-admin-usuarios']
+};
+
+/**
+ * Títulos específicos para los subpaneles del panel-control.
+ * Permiten que el header diga "Reportes Especiales" en vez de
+ * "Panel de Control y Seguimiento" cuando se navega a ese subpanel.
+ */
+const TITULOS_SUBPANEL = {
+  'subpanel-descargas':            'Descargas y Control',
+  'subpanel-reportes-especiales':  'Reportes Especiales',
+  'subpanel-admin-usuarios':       'Administración de Usuarios'
 };
 
 export function construirMenu(rol, perfil) {
@@ -78,11 +119,9 @@ export function construirMenu(rol, perfil) {
   const opciones = [...(MENUS[rol] || [])];
 
   // Inyectar módulo por gerencia — SOLO para reporte_nacional.
-  // visor_nacional y dashboard_nacional ven la info dentro del dashboard.
   if (rol === 'reporte_nacional') {
     const modulo = MODULOS_POR_GERENCIA[perfil?.gerencia];
     if (modulo) {
-      // Insertar después de "Reporte Nacional" (índice 1)
       opciones.splice(1, 0, modulo);
     }
   }
@@ -99,7 +138,7 @@ export function construirMenu(rol, perfil) {
     iconSpan.className = 'nav-icon';
     iconSpan.setAttribute('aria-hidden', 'true');
     const iconI = document.createElement('i');
-    iconI.className = op.icono; // clase CSS, no HTML
+    iconI.className = op.icono;
     iconSpan.appendChild(iconI);
 
     // Texto — textContent (nunca se interpreta como HTML)
@@ -123,16 +162,9 @@ export function construirMenu(rol, perfil) {
 
     item.addEventListener('click', (e) => {
       e.preventDefault();
-      mostrarPanel(op.panel);
-      if (op.subpanel) {
-        setTimeout(() => {
-          const sp = document.getElementById(op.subpanel);
-          if (sp) sp.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
-      }
+      mostrarPanel(op.panel, op.subpanel || null);
       document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
       item.classList.add('active');
-      // Accesibilidad: indicar link activo
       document.querySelectorAll('.nav-link').forEach(n => n.removeAttribute('aria-current'));
       item.setAttribute('aria-current', 'page');
       document.getElementById('sidebar').classList.remove('open');
@@ -141,19 +173,59 @@ export function construirMenu(rol, perfil) {
     nav.appendChild(item);
   });
 
-  // Cargar panel por defecto
+  // Cargar panel por defecto (con su subpanel si tiene)
   const primero = opciones[0];
-  if (primero) mostrarPanel(primero.panel);
+  if (primero) mostrarPanel(primero.panel, primero.subpanel || null);
 }
 
-export function mostrarPanel(panelId) {
+/**
+ * Muestra un panel y, opcionalmente, filtra sus subpaneles.
+ *
+ * @param {string} panelId      id del panel a mostrar (ej: 'panel-control')
+ * @param {string|null} subpanelId  id del subpanel a mostrar dentro del panel.
+ *                                  Si es null, se muestran todos los subpaneles.
+ *                                  Solo aplica a `panel-control`; el resto de
+ *                                  paneles ignora este parámetro.
+ */
+export function mostrarPanel(panelId, subpanelId = null) {
+  // 1. Ocultar todos los paneles
   document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+
+  // 2. Mostrar el panel solicitado
   const panel = document.getElementById(panelId);
   if (panel) panel.style.display = 'block';
 
-  const title = document.getElementById('pageTitle');
-  if (title) title.textContent = TITULOS[panelId] || 'Panel';
+  // 3. Filtrado de subpaneles del panel-control
+  //    Solo aplica si el panel es `panel-control` y se pasó un subpanelId.
+  //    - Con subpanelId: mostrar solo los subpaneles que mapea ese id.
+  //    - Sin subpanelId: mostrar todos (comportamiento legacy).
+  if (panelId === 'panel-control') {
+    const visibles = subpanelId
+      ? (SUBPANELES_VISIBLES_POR_OPCION[subpanelId] || [subpanelId])
+      : null;
 
+    SUBPANELES_CONTROL.forEach(id => {
+      const sp = document.getElementById(id);
+      if (!sp) return;
+      if (visibles && !visibles.includes(id)) {
+        sp.style.display = 'none';
+      } else {
+        sp.style.display = '';
+      }
+    });
+  }
+
+  // 4. Actualizar título de la página
+  const title = document.getElementById('pageTitle');
+  if (title) {
+    if (panelId === 'panel-control' && subpanelId && TITULOS_SUBPANEL[subpanelId]) {
+      title.textContent = TITULOS_SUBPANEL[subpanelId];
+    } else {
+      title.textContent = TITULOS[panelId] || 'Panel';
+    }
+  }
+
+  // 5. Cargar contenido del panel
   cargarContenidoPanel(panelId);
 }
 
@@ -210,7 +282,7 @@ async function cargarContenidoPanel(panelId) {
       cargarPanelPlanificacion();
       break;
     }
-        case 'panel-formaciones': {
+    case 'panel-formaciones': {
       const { cargarPanelFormaciones } = await import('./formaciones.js');
       cargarPanelFormaciones();
       break;

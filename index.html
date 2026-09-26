@@ -30,6 +30,7 @@
 </head>
 <body>
   <a href="#mainContent" class="skip-link">Saltar al contenido principal</a>
+
   <!-- ==================== LOGIN ==================== -->
   <section id="vista-login" class="vista activa">
     <div class="login-container">
@@ -233,7 +234,6 @@
 
           <section class="subpanel" id="subpanel-admin-usuarios">
             <h3>👥 Administración de Usuarios</h3>
-            
             <div class="table-container">
               <table class="tabla-dashboard" id="tablaUsuarios">
                 <thead>
@@ -354,7 +354,6 @@
 
           <div id="brigadasWarning"></div>
 
-          <!-- Formulario -->
           <form id="formBrigada" style="display:none;">
             <div class="subpanel">
               <h3>👥 Datos de la Brigada</h3>
@@ -456,14 +455,12 @@
             </div>
           </form>
 
-          <!-- Botón "agregar" -->
           <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
             <button class="btn btn-primary" id="btnNuevaBrigada" style="display:none;">
               + Nueva brigada
             </button>
           </div>
 
-          <!-- Tabla -->
           <div class="subpanel">
             <h3>📋 Brigadas registradas</h3>
             <div id="listaBrigadas"></div>
@@ -478,7 +475,6 @@
 
           <div id="bancosWarning"></div>
 
-          <!-- Formulario -->
           <form id="formBanco" style="display:none;">
             <div class="subpanel">
               <h3>🏞️ Datos del Banco de Tierra</h3>
@@ -592,14 +588,12 @@
             </div>
           </form>
 
-          <!-- Botón "agregar" -->
           <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
             <button class="btn btn-primary" id="btnNuevoBanco" style="display:none;">
               + Nuevo banco de tierra
             </button>
           </div>
 
-          <!-- Tabla -->
           <div class="subpanel">
             <h3>📋 Bancos de tierra registrados</h3>
             <div id="listaBancos"></div>
@@ -614,7 +608,6 @@
 
           <div id="viverosWarning"></div>
 
-          <!-- Formulario -->
           <form id="formVivero" style="display:none;">
             <div class="subpanel">
               <h3>🏡 Datos del Vivero</h3>
@@ -716,14 +709,12 @@
             </div>
           </form>
 
-          <!-- Botón "agregar" (solo admin/producción) -->
           <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
             <button class="btn btn-primary" id="btnNuevoVivero" style="display:none;">
               + Nuevo vivero
             </button>
           </div>
 
-          <!-- Tabla -->
           <div class="subpanel">
             <h3>📋 Viveros registrados</h3>
             <div id="listaViveros"></div>
@@ -736,10 +727,7 @@
             <h2><i class="fas fa-calendar-alt"></i> Planificación Semanal</h2>
           </div>
 
-          <!-- ====== FORMULARIO ====== -->
           <form id="formPlanificacion">
-
-            <!-- Bloque: Semana -->
             <div class="subpanel">
               <h3>📅 Semana de Planificación</h3>
               <div class="form-row">
@@ -755,7 +743,6 @@
               </div>
             </div>
 
-            <!-- Bloque: Ubicación territorial (cascada) -->
             <div class="subpanel">
               <h3>📍 Ubicación Territorial</h3>
               <div class="form-row">
@@ -784,7 +771,6 @@
               </div>
             </div>
 
-            <!-- Bloque: Actividades -->
             <div class="subpanel">
               <h3>📝 Actividades de la Semana</h3>
               <div id="actividades-container"></div>
@@ -793,7 +779,6 @@
               </button>
             </div>
 
-            <!-- Botones de acción -->
             <div style="display:flex; gap:10px; justify-content:flex-end; margin-top: 8px;">
               <button type="button" class="btn btn-secondary" id="btnLimpiarPlanificacion">
                 🔄 Limpiar
@@ -804,13 +789,11 @@
             </div>
           </form>
 
-          <!-- ====== RESUMEN ESTADÍSTICO ====== -->
           <div class="subpanel" style="margin-top: 22px; background: linear-gradient(135deg, #f1f8e9 0%, #e8f5e9 100%); border-left: 5px solid var(--verde-brillante);">
             <h3>📊 Resumen de Planificación</h3>
             <div id="planificacionStats"></div>
           </div>
 
-          <!-- ====== LISTA HISTÓRICA ====== -->
           <div class="subpanel" style="margin-top: 22px;">
             <h3>📚 Mis planificaciones anteriores</h3>
             <div id="panel-planificacion-content"></div>
@@ -825,9 +808,7 @@
 
           <div id="formacionesWarning"></div>
 
-          <!-- ============ FORMULARIO ============ -->
           <form id="formFormacion" style="display:none;">
-
             <div class="subpanel">
               <h3>🎓 Datos de la Formación</h3>
               <div class="form-row">
@@ -960,14 +941,12 @@
             </div>
           </form>
 
-          <!-- ============ BOTÓN NUEVA ============ -->
           <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
             <button class="btn btn-primary" id="btnNuevaFormacion" style="display:none;">
               + Nueva formación
             </button>
           </div>
 
-          <!-- ============ TABLA ============ -->
           <div class="subpanel">
             <h3>📋 Formaciones registradas</h3>
             <div id="listaFormaciones"></div>
@@ -985,141 +964,141 @@
           </div>
         </div>
 
-  <!-- ==================== MODALES ==================== -->
-  <div id="modalAprobarUsuario" class="modal-overlay" style="display:none;"
-       role="dialog" aria-modal="true" aria-labelledby="modalAprobarTitulo">
-    <div class="modal-content">
-      <button class="modal-close" id="btnCerrarModalAprobar" aria-label="Cerrar modal">&times;</button>
-      <h3 id="modalAprobarTitulo">Aprobar Usuario</h3>
-      <div class="form-group">
-        <label>Rol en el Sistema</label>
-        <select id="rolModal">
-          <option value="">Seleccione rol</option>
-          <option value="control">Control y Seguimiento Nacional</option>
-          <option value="visor_nacional">Visor Nacional (solo lectura)</option>
-          <option value="reporte_nacional">Reporte Nacional</option>
-          <option value="reporte_estadal">Reporte Estadal</option>
-          <option value="dashboard_nacional">Gestión Nacional</option>
-          <option value="dashboard_estadal">Gestión Estadal</option>
-        </select>
-      </div>
-      <div class="form-group" id="extraFieldsModal" style="display:none;"></div>
-      <button class="btn btn-success" id="btnConfirmarAprobacion">Confirmar Aprobación</button>
-      <button class="btn btn-secondary" id="btnCancelarAprobacion" style="margin-left:10px;">Cancelar</button>
-    </div>
-  </div>
-
-  <div id="modalEditarPersonal" class="modal-overlay" style="display:none;"
-       role="dialog" aria-modal="true" aria-labelledby="modalEditarPersonalTitulo">
-    <div class="modal-content" style="max-width:600px">
-      <button class="modal-close" id="btnCerrarModalEditar" aria-label="Cerrar modal">&times;</button>
-      <h3 id="modalEditarPersonalTitulo">Editar personal</h3>
-      <input type="hidden" id="edit_personal_id">
-      <div class="form-row">
-        <div class="form-group"><label>Nombre</label><input type="text" id="edit_nombre"></div>
-        <div class="form-group"><label>Cédula</label><input type="text" id="edit_cedula"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Teléfono</label><input type="tel" id="edit_telefono"></div>
-        <div class="form-group"><label>Correo</label><input type="email" id="edit_correo"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label><input type="checkbox" id="edit_whatsapp"> WhatsApp</label></div>
-        <div class="form-group"><label><input type="checkbox" id="edit_telegram"> Telegram</label></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Talla camisa</label><input type="text" id="edit_tallaCamisa"></div>
-        <div class="form-group"><label>Talla pantalón</label><input type="text" id="edit_tallaPantalon"></div>
-        <div class="form-group"><label>Talla zapato</label><input type="text" id="edit_tallaZapato"></div>
-        <div class="form-group"><label>Talla gorra</label><input type="text" id="edit_tallaGorra"></div>
-      </div>
-      <div class="form-group"><label>Cargo</label><input type="text" id="edit_cargo"></div>
-      <button class="btn btn-success" id="btnGuardarEdicionPersonal">Guardar cambios</button>
-      <button class="btn btn-secondary" id="btnCancelarEdicionPersonal" style="margin-left:10px;">Cancelar</button>
-    </div>
-  </div>
-
-  <div id="modalRegistroGoogle" class="modal-overlay" style="display:none;"
-       role="dialog" aria-modal="true" aria-labelledby="modalGoogleTitulo">
-    <div class="modal-content" style="max-width:600px">
-      <button class="modal-close" id="btnCerrarModalRegistro" aria-label="Cerrar modal">&times;</button>
-      <h3 id="modalGoogleTitulo">Completa tus Datos</h3>
-      <div class="form-row">
-        <div class="form-group"><label>Nombre *</label><input type="text" id="regNombre"></div>
-        <div class="form-group"><label>Apellido *</label><input type="text" id="regApellido"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Cédula *</label><input type="text" id="regCedula" placeholder="V-12345678"></div>
-        <div class="form-group"><label>Teléfono *</label><input type="tel" id="regTelefono" placeholder="0412-1234567"></div>
-      </div>
-      <div class="form-group"><label>Dirección</label><input type="text" id="regDireccion"></div>
-      <div class="form-group"><label>Cargo</label><input type="text" id="regCargo"></div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Estado *</label>
-          <select id="regEstado">
-            <option value="">Seleccione estado</option>
-          </select>
+        <!-- ==================== MODALES GLOBALES ==================== -->
+        <div id="modalAprobarUsuario" class="modal-overlay" style="display:none;"
+             role="dialog" aria-modal="true" aria-labelledby="modalAprobarTitulo">
+          <div class="modal-content">
+            <button class="modal-close" id="btnCerrarModalAprobar" aria-label="Cerrar modal">&times;</button>
+            <h3 id="modalAprobarTitulo">Aprobar Usuario</h3>
+            <div class="form-group">
+              <label>Rol en el Sistema</label>
+              <select id="rolModal">
+                <option value="">Seleccione rol</option>
+                <option value="control">Control y Seguimiento Nacional</option>
+                <option value="visor_nacional">Visor Nacional (solo lectura)</option>
+                <option value="reporte_nacional">Reporte Nacional</option>
+                <option value="reporte_estadal">Reporte Estadal</option>
+                <option value="dashboard_nacional">Gestión Nacional</option>
+                <option value="dashboard_estadal">Gestión Estadal</option>
+              </select>
+            </div>
+            <div class="form-group" id="extraFieldsModal" style="display:none;"></div>
+            <button class="btn btn-success" id="btnConfirmarAprobacion">Confirmar Aprobación</button>
+            <button class="btn btn-secondary" id="btnCancelarAprobacion" style="margin-left:10px;">Cancelar</button>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Municipio *</label>
-          <select id="regMunicipio" disabled>
-            <option value="">Seleccione municipio</option>
-          </select>
+
+        <div id="modalEditarPersonal" class="modal-overlay" style="display:none;"
+             role="dialog" aria-modal="true" aria-labelledby="modalEditarPersonalTitulo">
+          <div class="modal-content" style="max-width:600px">
+            <button class="modal-close" id="btnCerrarModalEditar" aria-label="Cerrar modal">&times;</button>
+            <h3 id="modalEditarPersonalTitulo">Editar personal</h3>
+            <input type="hidden" id="edit_personal_id">
+            <div class="form-row">
+              <div class="form-group"><label>Nombre</label><input type="text" id="edit_nombre"></div>
+              <div class="form-group"><label>Cédula</label><input type="text" id="edit_cedula"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Teléfono</label><input type="tel" id="edit_telefono"></div>
+              <div class="form-group"><label>Correo</label><input type="email" id="edit_correo"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label><input type="checkbox" id="edit_whatsapp"> WhatsApp</label></div>
+              <div class="form-group"><label><input type="checkbox" id="edit_telegram"> Telegram</label></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Talla camisa</label><input type="text" id="edit_tallaCamisa"></div>
+              <div class="form-group"><label>Talla pantalón</label><input type="text" id="edit_tallaPantalon"></div>
+              <div class="form-group"><label>Talla zapato</label><input type="text" id="edit_tallaZapato"></div>
+              <div class="form-group"><label>Talla gorra</label><input type="text" id="edit_tallaGorra"></div>
+            </div>
+            <div class="form-group"><label>Cargo</label><input type="text" id="edit_cargo"></div>
+            <button class="btn btn-success" id="btnGuardarEdicionPersonal">Guardar cambios</button>
+            <button class="btn btn-secondary" id="btnCancelarEdicionPersonal" style="margin-left:10px;">Cancelar</button>
+          </div>
         </div>
-      </div>
-      <div class="form-group">
-        <label>Parroquia</label>
-        <select id="regParroquia" disabled>
-          <option value="">Seleccione parroquia</option>
-        </select>
-      </div>
-      <div class="form-group"><label>Contraseña * (mínimo 6 caracteres)</label><input type="password" id="regPassword"></div>
-      <button class="btn btn-success" id="btnCompletarRegistroGoogle">Registrarme</button>
-      <button class="btn btn-secondary" id="btnCancelarRegistroGoogle" style="margin-left:10px;">Cancelar</button>
-      <p id="regError" class="error-message" style="margin-top:10px;"></p>
-    </div>
-  </div>
 
-  <div id="modalReporteEspecial" class="modal-overlay" style="display:none;"
-       role="dialog" aria-modal="true" aria-labelledby="repEspTitulo">
-    <div class="modal-content" style="max-width: 700px; max-height: 85vh; overflow-y: auto;">
-      <button class="modal-close" id="btnCerrarModalRepEsp" aria-label="Cerrar modal">&times;</button>
-      <h3 id="repEspTitulo" style="margin-bottom: 6px;">📋 Reporte Especial</h3>
-      <p id="repEspDescripcion" style="color: #666; font-size: 13px; margin-bottom: 16px;"></p>
-      <div id="repEspCampos"></div>
-      <div style="margin-top: 18px; display: flex; gap: 10px;">
-        <button class="btn btn-success" id="btnEnviarRepEsp">📤 Enviar respuesta</button>
-        <button class="btn btn-secondary" id="btnCerrarRepEsp2">Cerrar</button>
-      </div>
-    </div>
-  </div>
+        <div id="modalRegistroGoogle" class="modal-overlay" style="display:none;"
+             role="dialog" aria-modal="true" aria-labelledby="modalGoogleTitulo">
+          <div class="modal-content" style="max-width:600px">
+            <button class="modal-close" id="btnCerrarModalRegistro" aria-label="Cerrar modal">&times;</button>
+            <h3 id="modalGoogleTitulo">Completa tus Datos</h3>
+            <div class="form-row">
+              <div class="form-group"><label>Nombre *</label><input type="text" id="regNombre"></div>
+              <div class="form-group"><label>Apellido *</label><input type="text" id="regApellido"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Cédula *</label><input type="text" id="regCedula" placeholder="V-12345678"></div>
+              <div class="form-group"><label>Teléfono *</label><input type="tel" id="regTelefono" placeholder="0412-1234567"></div>
+            </div>
+            <div class="form-group"><label>Dirección</label><input type="text" id="regDireccion"></div>
+            <div class="form-group"><label>Cargo</label><input type="text" id="regCargo"></div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Estado *</label>
+                <select id="regEstado">
+                  <option value="">Seleccione estado</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Municipio *</label>
+                <select id="regMunicipio" disabled>
+                  <option value="">Seleccione municipio</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Parroquia</label>
+              <select id="regParroquia" disabled>
+                <option value="">Seleccione parroquia</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Contraseña * (mínimo 6 caracteres)</label><input type="password" id="regPassword"></div>
+            <button class="btn btn-success" id="btnCompletarRegistroGoogle">Registrarme</button>
+            <button class="btn btn-secondary" id="btnCancelarRegistroGoogle" style="margin-left:10px;">Cancelar</button>
+            <p id="regError" class="error-message" style="margin-top:10px;"></p>
+          </div>
+        </div>
 
-  <div id="modalSesionPorExpirar" class="modal-overlay" style="display:none;"
-       role="dialog" aria-modal="true" aria-labelledby="modalSesionTitulo">
-    <div class="modal-content" style="max-width:420px; text-align:center;">
-      <h3 id="modalSesionTitulo" style="color: var(--verde-oscuro); margin-bottom: 12px;">
-        ⏰ Tu sesión está por expirar
-      </h3>
-      <p style="margin-bottom: 18px; color: #555;">
-        Por inactividad, tu sesión se cerrará en
-        <strong id="segundosRestantes">180</strong> segundos.
-      </p>
-      <button class="btn btn-success" id="btnExtenderSesion">
-        Extender sesión
-      </button>
-      <button class="btn btn-secondary" id="btnCerrarSesionAhora"
-              style="margin-left: 10px;">
-        Cerrar sesión ahora
-      </button>
-    </div>
-  </div>
+        <div id="modalReporteEspecial" class="modal-overlay" style="display:none;"
+             role="dialog" aria-modal="true" aria-labelledby="repEspTitulo">
+          <div class="modal-content" style="max-width: 700px; max-height: 85vh; overflow-y: auto;">
+            <button class="modal-close" id="btnCerrarModalRepEsp" aria-label="Cerrar modal">&times;</button>
+            <h3 id="repEspTitulo" style="margin-bottom: 6px;">📋 Reporte Especial</h3>
+            <p id="repEspDescripcion" style="color: #666; font-size: 13px; margin-bottom: 16px;"></p>
+            <div id="repEspCampos"></div>
+            <div style="margin-top: 18px; display: flex; gap: 10px;">
+              <button class="btn btn-success" id="btnEnviarRepEsp">📤 Enviar respuesta</button>
+              <button class="btn btn-secondary" id="btnCerrarRepEsp2">Cerrar</button>
+            </div>
+          </div>
+        </div>
 
-  <div id="loader" class="loader oculto" role="status" aria-live="polite">Cargando…</div>
-  <div id="toast" class="toast oculto" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div id="modalSesionPorExpirar" class="modal-overlay" style="display:none;"
+             role="dialog" aria-modal="true" aria-labelledby="modalSesionTitulo">
+          <div class="modal-content" style="max-width:420px; text-align:center;">
+            <h3 id="modalSesionTitulo" style="color: var(--verde-oscuro); margin-bottom: 12px;">
+              ⏰ Tu sesión está por expirar
+            </h3>
+            <p style="margin-bottom: 18px; color: #555;">
+              Por inactividad, tu sesión se cerrará en
+              <strong id="segundosRestantes">180</strong> segundos.
+            </p>
+            <button class="btn btn-success" id="btnExtenderSesion">
+              Extender sesión
+            </button>
+            <button class="btn btn-secondary" id="btnCerrarSesionAhora"
+                    style="margin-left: 10px;">
+              Cerrar sesión ahora
+            </button>
+          </div>
+        </div>
 
-  </main>
-  </div><!-- #mainDashboard -->
+        <div id="loader" class="loader oculto" role="status" aria-live="polite">Cargando…</div>
+        <div id="toast" class="toast oculto" role="status" aria-live="polite" aria-atomic="true"></div>
+
+      </main>
+    </div><!-- #mainDashboard -->
   </section><!-- #vista-app -->
 
   <script type="module" src="/js/firebase-config.js"></script>
