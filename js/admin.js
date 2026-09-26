@@ -11,6 +11,7 @@
 //   - /reportes          → exportación CSV
 //   - /planificacion     → exportación CSV
 //   - /usuarios          → gestión de cuentas (onSnapshot)
+//   - /intentos-publicos → lectura del contador real de intentos fallidos
 //
 // Suscripción: onSnapshot sobre /usuarios — se limpia al cerrar sesión vía
 // evento 'usuarioCerroSesion' (disparado por auth.js::logout).
@@ -27,6 +28,11 @@ import { cargarAdminReportesEspeciales } from "./reportesEspeciales.js";
 
 let unsubscribeUsuarios = null;
 let uidPendienteAprobar = null;
+
+/* Mapa en memoria: uid → contador de intentos fallidos.
+   Se puebla en cada snapshot de /usuarios leyendo /intentos-publicos.
+   Fallback: si el doc no existe en /intentos-publicos, se usa u.intentosFallidos. */
+let _contadoresIntentos = {};
 
 export async function cargarPanelControl() {
   const perfil = window.__perfil;
@@ -306,7 +312,6 @@ function inicializarDescargas() {
       const accion = btn.dataset.accion;
       const checkboxes = container.querySelectorAll(`.chk-columna[data-grupo="${grupoId}"]`);
       checkboxes.forEach(cb => cb.checked = (accion === 'all'));
-      // Actualizar el "select all" del grupo
       const grupoChk = container.querySelector(`.chk-grupo[data-grupo="${grupoId}"]`);
       if (grupoChk) grupoChk.checked = (accion === 'all');
     });
@@ -386,13 +391,10 @@ function aplanarEspecies(especiesData) {
 
 /**
  * Convierte el valor de un campo en string seguro para CSV.
- * - Maneja arrays, objetos Timestamp, null/undefined.
- * - Previene fórmulas (=, +, -, @).
  */
 function formatearValorCSV(valor, tipo) {
   if (valor === null || valor === undefined) return '';
 
-  // Timestamp de Firestore
   if (typeof valor?.toDate === 'function') {
     try {
       return valor.toDate().toLocaleString('es-VE');
@@ -401,17 +403,14 @@ function formatearValorCSV(valor, tipo) {
     }
   }
 
-  // Tipo especial: especies
   if (tipo === 'especies') {
     return aplanarEspecies(valor);
   }
 
-  // Arrays
   if (Array.isArray(valor)) {
     return valor.join(' | ');
   }
 
-  // Objetos genéricos (ej: semillas { forestal: 10, frutal: 5 })
   if (typeof valor === 'object') {
     try {
       return Object.entries(valor)
@@ -423,15 +422,11 @@ function formatearValorCSV(valor, tipo) {
     }
   }
 
-  // String / número / boolean
   return String(valor);
 }
 
 /**
  * Escapa un string para CSV.
- * - Dobla comillas internas.
- * - Protege contra inyección de fórmulas.
- * - Envuelve en comillas.
  */
 function escaparCSV(str) {
   const s = String(str ?? '').replace(/"/g, '""');
@@ -461,10 +456,8 @@ async function descargarReporte() {
       return f && f <= new Date(hasta + 'T23:59:59');
     });
 
-    // Header: usamos las etiquetas legibles, no las rutas
     const header = columnas.map(c => escaparCSV(c.label)).join(',');
 
-    // Filas
     const filas = reportes.map(r => {
       return columnas.map(col => {
         const valor = getByPath(r, col.ruta);
@@ -542,7 +535,23 @@ async function cargarTablaUsuarios() {
   const tbody = document.querySelector('#tablaUsuarios tbody');
   if (!tbody) return;
 
-  unsubscribeUsuarios = onSnapshot(collection(db, 'usuarios'), (snapshot) => {
+  // Callback ASYNC: además del snapshot de /usuarios, leemos los
+  // contadores de /intentos-publicos para mostrar el valor real.
+  unsubscribeUsuarios = onSnapshot(collection(db, 'usuarios'), async (snapshot) => {
+    // 1. Cargar contadores de intentos desde /intentos-publicos.
+    //    Firestore exige permiso `list` — la regla solo lo otorga a control.
+    try {
+      const intentosSnap = await getDocs(collection(db, 'intentos-publicos'));
+      _contadoresIntentos = {};
+      intentosSnap.forEach(d => {
+        _contadoresIntentos[d.id] = Number(d.data().contador) || 0;
+      });
+    } catch (e) {
+      // Silencioso: si falla, usamos el fallback u.intentosFallidos
+      console.warn('[Admin] No se pudieron leer los contadores de intentos:', e?.code || e);
+    }
+
+    // 2. Renderizar la tabla
     tbody.innerHTML = '';
     let pendientes = 0;
 
@@ -555,15 +564,15 @@ async function cargarTablaUsuarios() {
       if (u.estadoCuenta === 'pendiente') { infoExtra = '⏳ Pendiente'; pendientes++; }
       else if (u.rol) infoExtra += ` • ${u.rol}`;
 
-      // Mostrar intentos fallidos si hay > 0
-      const intentos = Number(u.intentosFallidos) || 0;
+      // Intentos fallidos: fuente real es /intentos-publicos.
+      // Fallback: /usuarios.intentosFallidos (por docs viejos).
+      const intentos = Number(_contadoresIntentos[id] ?? u.intentosFallidos ?? 0) || 0;
       if (intentos > 0 && intentos < 3) {
         infoExtra += ` • ⚠️ ${intentos}/3 intentos`;
       } else if (intentos >= 3) {
         infoExtra += ` • 🔒 ${intentos}/3 intentos`;
       }
 
-      // Etiqueta legible para aria-label de los botones de acción
       const etiquetaUsuario = u.nombre || u.email || id;
 
       tr.innerHTML = `
@@ -578,7 +587,6 @@ async function cargarTablaUsuarios() {
         acc.appendChild(btn('Aprobar', 'btn-success', () => abrirModalAprobar(id, u), `Aprobar la cuenta de ${etiquetaUsuario}`));
         acc.appendChild(btn('Rechazar', 'btn-warning', () => rechazarUsuario(id), `Rechazar la cuenta de ${etiquetaUsuario}`));
       } else if (u.suspendido) {
-        // Suspendido por intentos fallidos o por admin → ofrecer reset completo
         acc.appendChild(btn('🔓 Resetear intentos', 'btn-success', () => resetearIntentos(id, etiquetaUsuario), `Resetear intentos fallidos y reactivar la cuenta de ${etiquetaUsuario}`));
         acc.appendChild(btn('Eliminar', 'btn-danger', () => eliminarUsuario(id), `Eliminar la cuenta de ${etiquetaUsuario}`));
       } else {
@@ -599,11 +607,6 @@ async function cargarTablaUsuarios() {
 
 /**
  * Crea un botón de acción con estilos consistentes y aria-label opcional.
- * @param {string} txt        Texto visible
- * @param {string} cls        Clases CSS adicionales (ej: 'btn-success')
- * @param {Function} cb       Handler de click
- * @param {string} [ariaLabel] Descripción accesible para lectores de pantalla
- * @returns {HTMLButtonElement}
  */
 function btn(txt, cls, cb, ariaLabel = null) {
   const b = document.createElement('button');
@@ -672,8 +675,6 @@ async function confirmarAprobacion() {
     if (!gerencia) return toast('Seleccione la gerencia');
   }
 
-  // Para 'control' y 'visor_nacional' no se pide nada extra
-
   try {
     await updateDoc(doc(db, 'usuarios', uidPendienteAprobar), {
       rol,
@@ -698,18 +699,15 @@ async function rechazarUsuario(uid) {
 
 /**
  * Resetea el contador de intentos fallidos y reactiva al usuario.
- * Solo aplicable desde el panel de control.
  */
 async function resetearIntentos(uid, etiqueta) {
   if (!confirm(`¿Resetear los intentos fallidos y reactivar la cuenta de ${etiqueta}?`)) return;
   try {
-    // Borrar contador público
     const contadorRef = doc(db, 'intentos-publicos', uid);
     const contadorSnap = await getDoc(contadorRef);
     if (contadorSnap.exists()) {
       await deleteDoc(contadorRef);
     }
-    // Resetear /usuarios
     await updateDoc(doc(db, 'usuarios', uid), {
       intentosFallidos: 0,
       ultimoIntentoFallido: null,
@@ -744,25 +742,22 @@ async function cambiarPassword(email) {
 }
 
 /* ==================== CLEANUP DE SUSCRIPCIONES AL CERRAR SESIÓN ==================== */
-// H.1: auth.js::logout() dispara 'usuarioCerroSesion' antes de signOut().
-// Esto libera el onSnapshot de /usuarios para evitar fugas de listeners
-// de Firestore tras cerrar sesión.
 document.addEventListener('usuarioCerroSesion', () => {
   if (unsubscribeUsuarios) {
     try { unsubscribeUsuarios(); } catch (_) {}
     unsubscribeUsuarios = null;
   }
+  _contadoresIntentos = {};
 });
 
 /* ==================== BACKFILL EMAILS-LOOKUP ==================== */
 /**
  * Recorre todos los usuarios y crea (si no existe) su documento en
- * /emails-lookup con el hash del email. Necesario para que el contador
- * de intentos fallidos funcione con usuarios creados ANTES de implementar
- * esta funcionalidad.
+ * /emails-lookup con el hash del email.
  *
- * Es idempotente: si el lookup ya existe, no lo toca. Se puede ejecutar
- * varias veces sin problema.
+ * Nota: con el Camino A aplicado, este backfill sigue siendo útil para
+ * el flujo de login (login consulta /emails-lookup antes de autenticar).
+ * Se mantiene por si se necesita ejecutar manualmente desde consola.
  */
 async function backfillEmailsLookup() {
   if (!confirm('Esto va a recorrer TODOS los usuarios y crear sus lookups de email. ¿Continuar?')) return;
@@ -810,6 +805,92 @@ async function backfillEmailsLookup() {
   } catch (e) {
     console.error(e);
     toast('Error en el backfill: ' + (e.message || ''));
+  } finally {
+    loader(false);
+  }
+}
+
+/* ==================== BACKFILL PERSONAL creadoPor ==================== */
+async function backfillPersonalCreadoPor() {
+  if (!confirm(
+    'Esto recorrerá /personal y asignará creadoPor a los docs que no lo tengan.\n\n' +
+    'Los docs sin candidato único quedarán solo para control.\n\n' +
+    '¿Continuar?'
+  )) return;
+
+  loader(true);
+  try {
+    const usersSnap = await getDocs(collection(db, 'usuarios'));
+    const usuarios = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const candidatosPorEstado = {};
+    const candidatosPorGerencia = {};
+
+    usuarios.forEach(u => {
+      if (u.rol === 'reporte_estadal' && u.estado) {
+        (candidatosPorEstado[u.estado] ||= []).push(u.id);
+      }
+      if (u.rol === 'reporte_nacional' && u.gerencia) {
+        (candidatosPorGerencia[u.gerencia] ||= []).push(u.id);
+      }
+    });
+
+    const personalSnap = await getDocs(collection(db, 'personal'));
+
+    let asignados = 0;
+    let yaTienen = 0;
+    let ambiguos = 0;
+    let sinCandidato = 0;
+
+    for (const p of personalSnap.docs) {
+      const data = p.data();
+
+      if (data.creadoPor) { yaTienen++; continue; }
+
+      let candidato = null;
+
+      if (data.estado) {
+        const arr = candidatosPorEstado[data.estado] || [];
+        if (arr.length === 1) {
+          candidato = arr[0];
+        } else if (arr.length > 1) {
+          ambiguos++;
+          continue;
+        }
+      }
+
+      if (!candidato && data.gerencia) {
+        const arr = candidatosPorGerencia[data.gerencia] || [];
+        if (arr.length === 1) {
+          candidato = arr[0];
+        } else if (arr.length > 1) {
+          ambiguos++;
+          continue;
+        }
+      }
+
+      if (!candidato) { sinCandidato++; continue; }
+
+      try {
+        await updateDoc(doc(db, 'personal', p.id), {
+          creadoPor: candidato,
+          backfilled: true,
+          backfilledEn: serverTimestamp()
+        });
+        asignados++;
+      } catch (e) {
+        console.warn('[Backfill personal] Error con doc', p.id, e?.code || e);
+      }
+    }
+
+    toast(
+      `Backfill personal: ${asignados} asignados, ${yaTienen} ya tenían, ` +
+      `${ambiguos} ambiguos, ${sinCandidato} sin candidato`,
+      7000
+    );
+  } catch (e) {
+    console.error('[Backfill personal] Error general:', e);
+    toast('Error en backfill de personal: ' + (e.message || ''), 5000, 'error');
   } finally {
     loader(false);
   }

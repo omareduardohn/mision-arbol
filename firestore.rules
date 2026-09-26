@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /* ---------- Helpers ---------- */
+    /* ========== HELPERS ========== */
     function isAuth() {
       return request.auth != null;
     }
@@ -21,8 +21,7 @@ service cloud.firestore {
     function miEstado()   { return userDoc().estado; }
     function miGerencia() { return userDoc().gerencia; }
 
-    /* ---------- USUARIOS ---------- */
-    /* ---------- USUARIOS ---------- */
+    /* ========== USUARIOS ========== */
     match /usuarios/{uid} {
       allow get: if isAuth() && (request.auth.uid == uid || esControl());
       allow list: if isAuth() && esControl();
@@ -33,48 +32,50 @@ service cloud.firestore {
                          'dashboard_nacional', 'dashboard_estadal'
                        ]
                     && request.resource.data.estadoCuenta == 'pendiente';
+
+      // Update: 2 caminos.
+      //   1. control: puede todo.
+      //   2. dueño autenticado:
+      //      a) puede modificar campos no sensibles, O
+      //      b) puede RESETEAR sus propios intentos (intentosFallidos=0,
+      //         suspendido=false) al loguearse bien.
+      //
+      // Eliminada: la rama anónima que permitía a cualquiera incrementar
+      // intentos de otros usuarios. Esto era un vector de bloqueo arbitrario.
       allow update: if
         esControl()
         ||
         (
           isAuth() && request.auth.uid == uid
-          && !request.resource.data.diff(resource.data)
-               .affectedKeys()
-               .hasAny(['rol','estadoCuenta','estado','gerencia','suspendido','cedula','email','intentosFallidos','ultimoIntentoFallido'])
-        )
-        ||
-        (
-          request.resource.data.diff(resource.data)
-            .affectedKeys().hasOnly(['intentosFallidos','ultimoIntentoFallido','suspendido'])
-          && request.resource.data.intentosFallidos is int
-          && request.resource.data.intentosFallidos == resource.data.get('intentosFallidos', 0) + 1
-          && request.resource.data.intentosFallidos <= 3
-          && request.resource.data.suspendido == (request.resource.data.intentosFallidos >= 3)
           && (
-            !('ultimoIntentoFallido' in resource.data)
-            || request.time > resource.data.ultimoIntentoFallido + duration.value(15, 's')
+            // Rama A: modificar campos NO sensibles
+            !request.resource.data.diff(resource.data)
+                 .affectedKeys()
+                 .hasAny(['rol','estadoCuenta','estado','gerencia','suspendido','cedula','email','intentosFallidos','ultimoIntentoFallido'])
+            ||
+            // Rama B: solo puede RESETEAR sus propios intentos a 0
+            (
+              request.resource.data.diff(resource.data)
+                .affectedKeys().hasOnly(['intentosFallidos','ultimoIntentoFallido','suspendido'])
+              && request.resource.data.intentosFallidos == 0
+              && request.resource.data.suspendido == false
+            )
           )
         );
       allow delete: if esControl();
     }
 
-    /* ---------- CÉDULAS (hash anti-duplicados) ---------- */
+    /* ========== CÉDULAS ========== */
     match /cedulas/{hashId} {
-      // get individual OK (registro público verifica duplicados)
-      // list restringido a control (evita enumeración)
       allow get: if true;
-
       allow list: if isAuth() && esControl();
-
       allow create: if isAuth()
                     && request.resource.data.uid == request.auth.uid
                     && !exists(/databases/$(database)/documents/cedulas/$(hashId));
       allow delete: if esControl();
     }
 
-
-
-    /* ---------- REPORTES ---------- */
+    /* ========== REPORTES ========== */
     match /reportes/{id} {
       allow get: if isAuth() && (
         esControl() ||
@@ -104,28 +105,16 @@ service cloud.firestore {
       allow update: if esControl()
                     || resource.data.usuarioId == request.auth.uid;
 
-      // No permitir delete si el reporte está vinculado a una planificación
       allow delete: if esControl()
                     || (resource.data.usuarioId == request.auth.uid
                         && resource.data.planificacionId == null);
     }
 
-    /* ---------- EMAILS LOOKUP (hash → uid) ---------- */
-    // Colección mínima que mapea hash(email) → uid. Sirve para que el
-    // cliente pueda ubicar el documento de un usuario al que se le está
-    // contando un intento fallido de login, sin exponer el email real.
-    //
-    // Seguridad: el hash es SHA-256 irreversible. Un atacante solo podría
-    // confirmar "este email existe" si conoce el email exacto, pero no
-    // obtiene password, rol, ni ningún otro dato.
+    /* ========== EMAILS LOOKUP ========== */
     match /emails-lookup/{hashEmail} {
-      // Lectura pública: el cliente la necesita ANTES de autenticarse.
       allow get: if true;
-      allow list: if false;  // evitar enumeración masiva
+      allow list: if false;
 
-      // Se crea cuando:
-      //   a) Un usuario se registra → crea su propio lookup.
-      //   b) Un admin ejecuta backfill → crea lookups de otros usuarios.
       allow create: if isAuth()
                     && request.resource.data.uid is string
                     && (
@@ -133,24 +122,26 @@ service cloud.firestore {
                       || esControl()
                     );
 
-      // No se modifica desde el cliente.
       allow update: if false;
       allow delete: if esControl();
     }
 
-    /* ---------- INTENTOS PUBLICOS (contador sin auth) ---------- */
+    /* ========== INTENTOS PUBLICOS ========== */
     match /intentos-publicos/{uid} {
+      // get sigue público (login anónimo lo necesita).
+      // list SOLO para control, para que el panel lea los contadores.
       allow get: if true;
-      allow list: if false;
+      allow list: if isAuth() && esControl();
 
-      // Create: primer intento fallido. El cliente es anónimo.
-      // Aceptamos cualquier contador entre 1 y 3.
+      // Create: SOLO se puede iniciar el contador en 1.
+      // Antes se aceptaba 1..3, lo cual permitía a un atacante anónimo
+      // crear el doc directamente con contador=3 y bloquear a la víctima
+      // de una sola escritura.
       allow create: if
         request.resource.data.contador is number
-        && request.resource.data.contador >= 1
-        && request.resource.data.contador <= 3;
+        && request.resource.data.contador == 1;
 
-      // Update: incrementos sucesivos (rate-limited a 15s).
+      // Update: rate-limitado, incremento de a 1.
       allow update: if
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['contador','ultimo'])
         && request.resource.data.contador is number
@@ -161,11 +152,10 @@ service cloud.firestore {
           || request.time > resource.data.ultimo + duration.value(15, 's')
         );
 
-      // Delete: el propio usuario (al loguearse bien) o un admin.
       allow delete: if isAuth() && (request.auth.uid == uid || esControl());
     }
 
-    /* ---------- PERSONAL ---------- */
+    /* ========== PERSONAL ========== */
     match /personal/{id} {
       allow get: if isAuth() && (
         esControl() ||
@@ -189,12 +179,11 @@ service cloud.firestore {
         (esReporteNacional() && request.resource.data.gerencia == miGerencia())
       );
 
-      // Update/delete: solo el creador o control
       allow update, delete: if esControl()
         || (isAuth() && resource.data.creadoPor == request.auth.uid);
     }
 
-    /* ---------- PLANIFICACIÓN ---------- */
+    /* ========== PLANIFICACIÓN ========== */
     match /planificacion/{id} {
       allow get: if isAuth() && (
         esControl() ||
@@ -222,14 +211,12 @@ service cloud.firestore {
                             || resource.data.usuarioId == request.auth.uid;
     }
 
-    /* ---------- REPORTES ESPECIALES ---------- */
+    /* ========== REPORTES ESPECIALES ========== */
     match /reportesEspeciales/{id} {
       allow get: if isAuth();
       allow list: if isAuth();
       allow create, delete: if esControl();
 
-      // Update: control total; usuarios comunes solo pueden AGREGAR
-      // una respuesta (append-only).
       allow update: if esControl()
         || (
           isAuth()
@@ -238,9 +225,8 @@ service cloud.firestore {
         );
     }
 
-    /* ---------- VIVEROS ---------- */
+    /* ========== VIVEROS ========== */
     match /viveros/{id} {
-      // Lectura: control, reporte_nacional (Producción), dashboard roles
       allow get: if isAuth() && (
         esControl() ||
         esVisorNacional() ||
@@ -257,14 +243,13 @@ service cloud.firestore {
         esDashboardEstadal()
       );
 
-      // Escritura: control o reporte_nacional de Producción
       allow create, update, delete: if isAuth() && (
         esControl() ||
         (esReporteNacional() && miGerencia() == 'Producción')
       );
     }
 
-    /* ---------- BANCOS DE TIERRA ---------- */
+    /* ========== BANCOS DE TIERRA ========== */
     match /bancosTierra/{id} {
       allow get: if isAuth() && (
         esControl() ||
@@ -288,7 +273,7 @@ service cloud.firestore {
       );
     }
 
-    /* ---------- BRIGADAS ---------- */
+    /* ========== BRIGADAS ========== */
     match /brigadas/{id} {
       allow get: if isAuth() && (
         esControl() ||
@@ -322,10 +307,7 @@ service cloud.firestore {
       );
     }
 
-    /* ---------- CONTADORES (códigos únicos) ---------- */
-    // Solo para el sistema de códigos VIV-/BRG-. Cualquier usuario
-    // autenticado puede incrementar el contador (necesario para crear
-    // viveros/brigadas), pero NO puede resetearlo hacia atrás ni borrarlo.
+    /* ========== CONTADORES ========== */
     match /contadores/{tipo} {
       allow get: if isAuth();
 
@@ -333,58 +315,36 @@ service cloud.firestore {
                     && request.resource.data.ultimo is number
                     && request.resource.data.ultimo > 0;
 
-      // Solo se permite incrementar. Nunca retroceder ni mantener igual.
       allow update: if isAuth()
                     && request.resource.data.ultimo is number
                     && request.resource.data.ultimo > resource.data.ultimo;
 
-      // Protección: nadie puede borrar el contador (evita reset).
       allow delete: if false;
     }
 
-  }
-    /* ---------- FORMACIONES (Núcleo de Formación) ---------- */
-    // Colección para cursos, talleres, diplomados y otras actividades
-    // educativas. Cada documento tiene un `codigoUnico` (FRM-XXXXXX).
-    //
-    // NOTA: este bloque usa funciones inline (get() directo) en lugar de
-    // los helpers esControl()/esReporteNacional() porque el compilador de
-    // Firestore no los resuelve bien dentro de este match cuando el
-    // archivo es grande.
+    /* ========== FORMACIONES ========== */
     match /formaciones/{id} {
-      allow get, list: if request.auth != null && (
-        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol in ['control', 'visor_nacional', 'dashboard_estadal']
-        || (
-          get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol in ['reporte_nacional', 'dashboard_nacional']
-          && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.gerencia == 'Formación'
-        )
+      allow get, list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        esDashboardEstadal() ||
+        ((esReporteNacional() || esDashboardNacional()) && miGerencia() == 'Formación')
       );
 
-      allow create: if request.auth != null
-                    && (
-                      get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'control'
-                      || (
-                        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'reporte_nacional'
-                        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.gerencia == 'Formación'
-                      )
-                    )
+      allow create: if isAuth()
+                    && (esControl() || (esReporteNacional() && miGerencia() == 'Formación'))
                     && request.resource.data.codigoUnico is string
                     && request.resource.data.codigoUnico.matches('^FRM-[0-9]{6}$')
                     && request.resource.data.titulo is string
                     && request.resource.data.titulo.size() > 0
                     && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
 
-      allow update: if request.auth != null
-                    && (
-                      get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'control'
-                      || (
-                        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'reporte_nacional'
-                        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.gerencia == 'Formación'
-                      )
-                    )
+      allow update: if isAuth()
+                    && (esControl() || (esReporteNacional() && miGerencia() == 'Formación'))
                     && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
 
-      allow delete: if request.auth != null
-                    && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'control';
+      allow delete: if esControl();
     }
-}
+
+  } /* <- cierra /databases */
+} /* <- cierra service */
