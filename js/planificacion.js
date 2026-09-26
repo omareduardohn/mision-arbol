@@ -816,7 +816,9 @@ function renderPlanificacionStats(planificaciones) {
     </div>
 
     <div style="margin-top: 18px;">
-      <canvas id="chartPlanificacion" height="140"></canvas>
+      <div class="chart-wrapper">
+        <canvas id="chartPlanificacion"></canvas>
+      </div>
     </div>
   `;
 

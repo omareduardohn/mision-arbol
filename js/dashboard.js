@@ -1021,7 +1021,9 @@ function renderGraficasTerritoriales(filtro) {
             <div style="font-size: 13px; font-weight: 700; color: var(--verde-oscuro); margin-bottom: 8px;">
               🏡 Recursos por tipo
             </div>
-            <canvas id="chartRecursos" height="200"></canvas>
+              <div class="chart-wrapper">
+                <canvas id="chartRecursos"></canvas>
+              </div>
           </div>
         ` : ''}
 
@@ -1030,7 +1032,9 @@ function renderGraficasTerritoriales(filtro) {
             <div style="font-size: 13px; font-weight: 700; color: var(--verde-oscuro); margin-bottom: 8px;">
               📊 Tendencia últimos 6 meses
             </div>
-            <canvas id="chartTendencia" height="200"></canvas>
+              <div class="chart-wrapper">
+                <canvas id="chartTendencia"></canvas>
+              </div>
           </div>
         ` : ''}
 
@@ -1039,7 +1043,9 @@ function renderGraficasTerritoriales(filtro) {
             <div style="font-size: 13px; font-weight: 700; color: var(--verde-oscuro); margin-bottom: 8px;">
               🎽 Brigadas por municipio
             </div>
-            <canvas id="chartBrigadasMunicipio" height="200"></canvas>
+            <div class="chart-wrapper">
+              <canvas id="chartBrigadasMunicipio"></canvas>
+            </div>
           </div>
         ` : ''}
 
@@ -1048,7 +1054,9 @@ function renderGraficasTerritoriales(filtro) {
             <div style="font-size: 13px; font-weight: 700; color: var(--verde-oscuro); margin-bottom: 8px;">
               👤 Personal por cargo
             </div>
-            <canvas id="chartPersonalCargo" height="200"></canvas>
+            <div class="chart-wrapper">
+              <canvas id="chartPersonalCargo"></canvas>
+            </div>
           </div>
         ` : ''}
 
@@ -1473,9 +1481,11 @@ function renderEstados() {
         <div class="kpi-resumen inactivo">❌ ${resumen.inactivos} inactivos</div>
         <div class="kpi-resumen porcentaje">${porcentaje}% cobertura</div>
       </div>
-      <div style="margin-top: 18px;">
-        <canvas id="chartEstados" height="180"></canvas>
-      </div>
+        <div style="margin-top: 18px;">
+          <div class="chart-wrapper">
+            <canvas id="chartEstados"></canvas>
+          </div>
+        </div>
     </div>
   `;
 
