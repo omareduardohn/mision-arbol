@@ -43,7 +43,6 @@ export async function cargarPanelControl() {
     document.getElementById('btnConfirmarAprobacion')?.addEventListener('click', confirmarAprobacion);
     document.getElementById('btnCancelarAprobacion')?.addEventListener('click', cerrarModalAprobar);
     document.getElementById('btnCerrarModalAprobar')?.addEventListener('click', cerrarModalAprobar);
-    document.getElementById('btnBackfillLookups')?.addEventListener('click', backfillEmailsLookup);
 
     const rolModal = document.getElementById('rolModal');
     rolModal?.addEventListener('change', actualizarCamposModalAprobar);
