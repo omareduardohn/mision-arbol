@@ -22,27 +22,39 @@ service cloud.firestore {
     function miGerencia() { return userDoc().gerencia; }
 
     /* ---------- USUARIOS ---------- */
+    /* ---------- USUARIOS ---------- */
     match /usuarios/{uid} {
       allow get: if isAuth() && (request.auth.uid == uid || esControl());
       allow list: if isAuth() && esControl();
-
       allow create: if isAuth()
                     && request.auth.uid == uid
                     && request.resource.data.rol in [
-                         'reporte_estadal',
-                         'reporte_nacional',
-                         'visor_nacional',
-                         'dashboard_nacional',
-                         'dashboard_estadal'
+                         'reporte_estadal', 'reporte_nacional', 'visor_nacional',
+                         'dashboard_nacional', 'dashboard_estadal'
                        ]
                     && request.resource.data.estadoCuenta == 'pendiente';
-
-      allow update: if esControl()
-                    || (isAuth() && request.auth.uid == uid
-                        && !request.resource.data.diff(resource.data)
-                             .affectedKeys()
-                             .hasAny(['rol','estadoCuenta','estado','gerencia','suspendido','cedula','email']));
-
+      allow update: if
+        esControl()
+        ||
+        (
+          isAuth() && request.auth.uid == uid
+          && !request.resource.data.diff(resource.data)
+               .affectedKeys()
+               .hasAny(['rol','estadoCuenta','estado','gerencia','suspendido','cedula','email','intentosFallidos','ultimoIntentoFallido'])
+        )
+        ||
+        (
+          request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['intentosFallidos','ultimoIntentoFallido','suspendido'])
+          && request.resource.data.intentosFallidos is int
+          && request.resource.data.intentosFallidos == resource.data.get('intentosFallidos', 0) + 1
+          && request.resource.data.intentosFallidos <= 3
+          && request.resource.data.suspendido == (request.resource.data.intentosFallidos >= 3)
+          && (
+            !('ultimoIntentoFallido' in resource.data)
+            || request.time > resource.data.ultimoIntentoFallido + duration.value(15, 's')
+          )
+        );
       allow delete: if esControl();
     }
 
@@ -59,6 +71,8 @@ service cloud.firestore {
                     && !exists(/databases/$(database)/documents/cedulas/$(hashId));
       allow delete: if esControl();
     }
+
+
 
     /* ---------- REPORTES ---------- */
     match /reportes/{id} {
@@ -94,6 +108,61 @@ service cloud.firestore {
       allow delete: if esControl()
                     || (resource.data.usuarioId == request.auth.uid
                         && resource.data.planificacionId == null);
+    }
+
+    /* ---------- EMAILS LOOKUP (hash → uid) ---------- */
+    // Colección mínima que mapea hash(email) → uid. Sirve para que el
+    // cliente pueda ubicar el documento de un usuario al que se le está
+    // contando un intento fallido de login, sin exponer el email real.
+    //
+    // Seguridad: el hash es SHA-256 irreversible. Un atacante solo podría
+    // confirmar "este email existe" si conoce el email exacto, pero no
+    // obtiene password, rol, ni ningún otro dato.
+    match /emails-lookup/{hashEmail} {
+      // Lectura pública: el cliente la necesita ANTES de autenticarse.
+      allow get: if true;
+      allow list: if false;  // evitar enumeración masiva
+
+      // Se crea cuando:
+      //   a) Un usuario se registra → crea su propio lookup.
+      //   b) Un admin ejecuta backfill → crea lookups de otros usuarios.
+      allow create: if isAuth()
+                    && request.resource.data.uid is string
+                    && (
+                      request.resource.data.uid == request.auth.uid
+                      || esControl()
+                    );
+
+      // No se modifica desde el cliente.
+      allow update: if false;
+      allow delete: if esControl();
+    }
+
+    /* ---------- INTENTOS PUBLICOS (contador sin auth) ---------- */
+    match /intentos-publicos/{uid} {
+      allow get: if true;
+      allow list: if false;
+
+      // Create: primer intento fallido. El cliente es anónimo.
+      // Aceptamos cualquier contador entre 1 y 3.
+      allow create: if
+        request.resource.data.contador is number
+        && request.resource.data.contador >= 1
+        && request.resource.data.contador <= 3;
+
+      // Update: incrementos sucesivos (rate-limited a 15s).
+      allow update: if
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['contador','ultimo'])
+        && request.resource.data.contador is number
+        && request.resource.data.contador == resource.data.contador + 1
+        && request.resource.data.contador <= 3
+        && (
+          !('ultimo' in resource.data)
+          || request.time > resource.data.ultimo + duration.value(15, 's')
+        );
+
+      // Delete: el propio usuario (al loguearse bien) o un admin.
+      allow delete: if isAuth() && (request.auth.uid == uid || esControl());
     }
 
     /* ---------- PERSONAL ---------- */

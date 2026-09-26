@@ -16,7 +16,8 @@
 // evento 'usuarioCerroSesion' (disparado por auth.js::logout).
 
 import {
-  collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot
+  collection, getDocs, getDoc, setDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db, auth } from "./firebase-config.js";
 import { ROLES, GERENCIAS, GERENCIAS_CORTAS, ESTADOS_VENEZUELA, escapeHTML } from "./datos.js";
@@ -42,6 +43,7 @@ export async function cargarPanelControl() {
     document.getElementById('btnConfirmarAprobacion')?.addEventListener('click', confirmarAprobacion);
     document.getElementById('btnCancelarAprobacion')?.addEventListener('click', cerrarModalAprobar);
     document.getElementById('btnCerrarModalAprobar')?.addEventListener('click', cerrarModalAprobar);
+    document.getElementById('btnBackfillLookups')?.addEventListener('click', backfillEmailsLookup);
 
     const rolModal = document.getElementById('rolModal');
     rolModal?.addEventListener('change', actualizarCamposModalAprobar);
@@ -554,6 +556,14 @@ async function cargarTablaUsuarios() {
       if (u.estadoCuenta === 'pendiente') { infoExtra = '⏳ Pendiente'; pendientes++; }
       else if (u.rol) infoExtra += ` • ${u.rol}`;
 
+      // Mostrar intentos fallidos si hay > 0
+      const intentos = Number(u.intentosFallidos) || 0;
+      if (intentos > 0 && intentos < 3) {
+        infoExtra += ` • ⚠️ ${intentos}/3 intentos`;
+      } else if (intentos >= 3) {
+        infoExtra += ` • 🔒 ${intentos}/3 intentos`;
+      }
+
       // Etiqueta legible para aria-label de los botones de acción
       const etiquetaUsuario = u.nombre || u.email || id;
 
@@ -569,7 +579,8 @@ async function cargarTablaUsuarios() {
         acc.appendChild(btn('Aprobar', 'btn-success', () => abrirModalAprobar(id, u), `Aprobar la cuenta de ${etiquetaUsuario}`));
         acc.appendChild(btn('Rechazar', 'btn-warning', () => rechazarUsuario(id), `Rechazar la cuenta de ${etiquetaUsuario}`));
       } else if (u.suspendido) {
-        acc.appendChild(btn('Reactivar', 'btn-success', () => suspenderUsuario(id, false), `Reactivar la cuenta de ${etiquetaUsuario}`));
+        // Suspendido por intentos fallidos o por admin → ofrecer reset completo
+        acc.appendChild(btn('🔓 Resetear intentos', 'btn-success', () => resetearIntentos(id, etiquetaUsuario), `Resetear intentos fallidos y reactivar la cuenta de ${etiquetaUsuario}`));
         acc.appendChild(btn('Eliminar', 'btn-danger', () => eliminarUsuario(id), `Eliminar la cuenta de ${etiquetaUsuario}`));
       } else {
         acc.appendChild(btn('Restablecer', 'btn-warning', () => cambiarPassword(u.email), `Enviar correo de restablecimiento a ${etiquetaUsuario}`));
@@ -686,6 +697,32 @@ async function rechazarUsuario(uid) {
   toast('Usuario rechazado');
 }
 
+/**
+ * Resetea el contador de intentos fallidos y reactiva al usuario.
+ * Solo aplicable desde el panel de control.
+ */
+async function resetearIntentos(uid, etiqueta) {
+  if (!confirm(`¿Resetear los intentos fallidos y reactivar la cuenta de ${etiqueta}?`)) return;
+  try {
+    // Borrar contador público
+    const contadorRef = doc(db, 'intentos-publicos', uid);
+    const contadorSnap = await getDoc(contadorRef);
+    if (contadorSnap.exists()) {
+      await deleteDoc(contadorRef);
+    }
+    // Resetear /usuarios
+    await updateDoc(doc(db, 'usuarios', uid), {
+      intentosFallidos: 0,
+      ultimoIntentoFallido: null,
+      suspendido: false
+    });
+    toast(`Cuenta de ${etiqueta} reactivada`);
+  } catch (e) {
+    console.error(e);
+    toast('Error al resetear intentos');
+  }
+}
+
 async function suspenderUsuario(uid, suspender) {
   await updateDoc(doc(db, 'usuarios', uid), { suspendido: suspender });
   toast(suspender ? 'Usuario suspendido' : 'Usuario reactivado');
@@ -717,3 +754,64 @@ document.addEventListener('usuarioCerroSesion', () => {
     unsubscribeUsuarios = null;
   }
 });
+
+/* ==================== BACKFILL EMAILS-LOOKUP ==================== */
+/**
+ * Recorre todos los usuarios y crea (si no existe) su documento en
+ * /emails-lookup con el hash del email. Necesario para que el contador
+ * de intentos fallidos funcione con usuarios creados ANTES de implementar
+ * esta funcionalidad.
+ *
+ * Es idempotente: si el lookup ya existe, no lo toca. Se puede ejecutar
+ * varias veces sin problema.
+ */
+async function backfillEmailsLookup() {
+  if (!confirm('Esto va a recorrer TODOS los usuarios y crear sus lookups de email. ¿Continuar?')) return;
+
+  loader(true);
+  try {
+    const usersSnap = await getDocs(collection(db, 'usuarios'));
+    let creados = 0;
+    let existentes = 0;
+    let omitidos = 0;
+    let errores = 0;
+
+    for (const userDoc of usersSnap.docs) {
+      const u = userDoc.data();
+      const email = u.email;
+      if (!email) { omitidos++; continue; }
+
+      const norm = String(email).trim().toLowerCase();
+      const encoded = new TextEncoder().encode('mision-arbol-email-v1-' + norm);
+      const buf = await crypto.subtle.digest('SHA-256', encoded);
+      const hash = Array.from(new Uint8Array(buf))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      try {
+        const lookupRef = doc(db, 'emails-lookup', hash);
+        const lookupSnap = await getDoc(lookupRef);
+        if (lookupSnap.exists()) {
+          existentes++;
+        } else {
+          await setDoc(lookupRef, {
+            uid: userDoc.id,
+            creado: serverTimestamp(),
+            backfilled: true
+          });
+          creados++;
+        }
+      } catch (e) {
+        console.warn('Error con', email, e?.code || e);
+        errores++;
+      }
+    }
+
+    toast(`Backfill: ${creados} creados, ${existentes} ya existían, ${omitidos} sin email, ${errores} errores`, 6000);
+  } catch (e) {
+    console.error(e);
+    toast('Error en el backfill: ' + (e.message || ''));
+  } finally {
+    loader(false);
+  }
+}

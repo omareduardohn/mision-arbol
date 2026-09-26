@@ -233,6 +233,14 @@
 
           <section class="subpanel" id="subpanel-admin-usuarios">
             <h3>👥 Administración de Usuarios</h3>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+              <button class="btn btn-warning btn-sm" id="btnBackfillLookups" 
+                      title="Solo necesario una vez: crea los lookups de email para usuarios existentes">
+                🔧 Backfill email lookups (1 vez)
+              </button>
+            </div>
+
             <div class="table-container">
               <table class="tabla-dashboard" id="tablaUsuarios">
                 <thead>

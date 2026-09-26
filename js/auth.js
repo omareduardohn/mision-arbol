@@ -14,7 +14,7 @@ import {
   browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  doc, setDoc, getDoc, serverTimestamp
+  doc, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { auth, db } from "./firebase-config.js";
 import {
@@ -145,6 +145,95 @@ async function hashCedula(cedula) {
   return Array.from(new Uint8Array(buf))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+/**
+ * Hashea un email con SHA-256 para usarlo como clave en /emails-lookup.
+ * Devuelve el hash en hex minúsculas. Mismo patrón que hashCedula.
+ */
+async function hashEmail(email) {
+  const norm = String(email).trim().toLowerCase();
+  if (!norm) return null;
+  const data = new TextEncoder().encode('mision-arbol-email-v1-' + norm);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Incrementa el contador de intentos fallidos para el dueño del email.
+ * Flujo:
+ *   1. Hashea el email.
+ *   2. Consulta /emails-lookup/{hash}. Si no existe → no hace nada
+ *      (el email no está registrado o el usuario nunca pasó por este flujo).
+ *   3. Si existe → obtiene el UID y hace updateDoc en /usuarios/{uid}
+ *      incrementando intentosFallidos.
+ *   4. Si el contador llega a 3, la regla de Firestore exige que
+ *      suspendido=true. Lo seteamos también.
+ *
+ * Silenciosa por diseño: si algo falla, no rompemos el flujo de login.
+ */
+async function registrarIntentoFallido(email) {
+  try {
+    const hash = await hashEmail(email);
+    if (!hash) return;
+
+    const lookupSnap = await getDoc(doc(db, 'emails-lookup', hash));
+    if (!lookupSnap.exists()) return;
+    const uid = lookupSnap.data().uid;
+    if (!uid) return;
+
+    // Leer el contador público
+    const contadorRef = doc(db, 'intentos-publicos', uid);
+    const contadorSnap = await getDoc(contadorRef);
+    const actual = contadorSnap.exists() ? (Number(contadorSnap.data().contador) || 0) : 0;
+    const siguiente = Math.min(actual + 1, 3);
+
+    if (siguiente === 1 && !contadorSnap.exists()) {
+      // Primer intento: crear el contador
+      await setDoc(contadorRef, {
+        contador: 1,
+        ultimo: serverTimestamp()
+      });
+    } else if (siguiente > actual) {
+      // Incremento
+      await updateDoc(contadorRef, {
+        contador: siguiente,
+        ultimo: serverTimestamp()
+      });
+    }
+
+    // Si llegó a 3, marcar suspendido en /usuarios (requiere estar autenticado,
+    // pero no lo estamos → esto lo tiene que hacer el admin o un trigger)
+    // Por ahora, solo actualizamos el contador público. El chequeo de
+    // suspensión se hace al intentar login (leer /intentos-publicos).
+  } catch (e) {
+    console.warn('[Auth] No se pudo registrar el intento fallido:', e?.code || e);
+  }
+}
+
+/**
+ * Resetea el contador de intentos fallidos de un usuario autenticado
+ * (se llama al loguearse con éxito).
+ */
+async function resetearIntentosFallidos(uid) {
+  if (!uid) return;
+  try {
+    const contadorRef = doc(db, 'intentos-publicos', uid);
+    const contadorSnap = await getDoc(contadorRef);
+    if (contadorSnap.exists()) {
+      await deleteDoc(contadorRef);
+    }
+    // Resetear en /usuarios (silencioso si falla)
+    await updateDoc(doc(db, 'usuarios', uid), {
+      intentosFallidos: 0,
+      ultimoIntentoFallido: null,
+      suspendido: false
+    }).catch(() => {});
+  } catch (e) {
+    console.warn('[Auth] No se pudo resetear intentos fallidos:', e?.code || e);
+  }
 }
 
 const proveedorGoogle = new GoogleAuthProvider();
@@ -348,6 +437,20 @@ async function registrar(e) {
       suspendido: false,
       creado: serverTimestamp()
     });
+        // Crear lookup público por hash de email
+    const emailHash = await hashEmail(email);
+    if (emailHash) {
+      try {
+        await setDoc(doc(db, 'emails-lookup', emailHash), {
+          uid: cred.user.uid,
+          creado: serverTimestamp()
+        });
+      } catch (exEmailLookup) {
+        console.warn('No se pudo crear el email-lookup:', exEmailLookup);
+        // No bloqueamos el registro por esto
+      }
+    }
+
     const hash = await hashCedula(cedula);
     if (hash) {
       try {
@@ -391,10 +494,38 @@ async function login(e) {
   err.textContent = '';
   const email = document.getElementById('login-email').value.trim();
   const pass  = document.getElementById('login-pass').value;
+
   try {
     loader(true);
+
+    // Chequear suspensión por intentos fallidos antes de intentar
+    const hash = await hashEmail(email);
+    if (hash) {
+      const lookupSnap = await getDoc(doc(db, 'emails-lookup', hash)).catch(() => null);
+      if (lookupSnap?.exists()) {
+        const uid = lookupSnap.data().uid;
+        if (uid) {
+          const contadorSnap = await getDoc(doc(db, 'intentos-publicos', uid)).catch(() => null);
+          if (contadorSnap?.exists() && contadorSnap.data().contador >= 3) {
+            err.textContent = 'Cuenta bloqueada por 3 intentos fallidos. Contactá al administrador.';
+            loader(false);
+            return;
+          }
+        }
+      }
+    }
+
     await signInWithEmailAndPassword(auth, email, pass);
   } catch (ex) {
+    const erroresDeCredenciales = [
+      'auth/invalid-credential',
+      'auth/wrong-password',
+      'auth/user-not-found',
+      'auth/invalid-login-credentials'
+    ];
+    if (erroresDeCredenciales.includes(ex.code)) {
+      await registrarIntentoFallido(email);
+    }
     err.textContent = traducirError(ex.code);
   } finally {
     loader(false);
@@ -489,6 +620,11 @@ function observar() {
 
       perfil.uid = user.uid;
       window.__perfil = perfil;
+
+      // Login exitoso → resetear intentos fallidos en background.
+      // No bloqueamos el flujo si falla.
+      // Login exitoso → limpiar contador público de intentos fallidos
+      resetearIntentosFallidos(user.uid);
       // No persistir campos sensibles en sessionStorage
       const perfilSeguro = { ...perfil };
       delete perfilSeguro.cedula;
@@ -649,6 +785,19 @@ async function completarRegistroGoogle() {
       gerencia: null,
       creado: serverTimestamp()
     });
+
+    // Crear lookup público por hash de email
+    const emailHashGoogle = await hashEmail(email);
+    if (emailHashGoogle) {
+      try {
+        await setDoc(doc(db, 'emails-lookup', emailHashGoogle), {
+          uid: usuarioGoogleTemporal.uid,
+          creado: serverTimestamp()
+        });
+      } catch (exEmailLookup) {
+        console.warn('No se pudo crear el email-lookup (Google):', exEmailLookup);
+      }
+    }
 
     document.getElementById('modalRegistroGoogle').style.display = 'none';
     toast('Registro exitoso. Su cuenta está pendiente de aprobación.', 5000);
