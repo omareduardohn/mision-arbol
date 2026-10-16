@@ -609,6 +609,82 @@
           </div>
         </div>
 
+        <!-- ==================== PANEL: NÚCLEOS FORMATIVOS ==================== -->
+        <div id="panel-nucleos" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-school"></i> Gestión de Núcleos Formativos</h2>
+          </div>
+
+          <div id="nucleosWarning"></div>
+
+          <form id="formNucleo" style="display:none;">
+            <div class="subpanel">
+              <h3>🎓 Datos del Núcleo</h3>
+              <div class="form-group">
+                <label>Nombre del núcleo *</label>
+                <input type="text" id="nuc_nombre" placeholder="Ej: Núcleo Formativo Los Samanes" required>
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <h3>📍 Territorio</h3>
+              <div class="form-row">
+                <div class="form-group"><label>Estado *</label><select id="nuc_estado" required></select></div>
+                <div class="form-group"><label>Municipio *</label><select id="nuc_municipio" disabled required></select></div>
+              </div>
+              <div class="form-group"><label>Parroquia *</label><select id="nuc_parroquia" disabled required></select></div>
+            </div>
+
+            <div class="subpanel">
+              <h3>🔗 Vinculación</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Vincular a *</label>
+                  <select id="nuc_vinculo_tipo" required>
+                    <option value="">Seleccione...</option>
+                    <option value="brigada">Brigada Ecosocialista</option>
+                    <option value="comite">Comité Ecosocialista</option>
+                    <option value="consejo">Consejo Ecosocialista</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Brigada / comité / consejo *</label>
+                  <select id="nuc_vinculo_id" disabled required><option value="">Seleccione el tipo primero...</option></select>
+                </div>
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <h3>👤 Responsable y estado</h3>
+              <div class="form-row">
+                <div class="form-group"><label>Responsable principal</label><input type="text" id="nuc_responsable" placeholder="Nombre y apellido"></div>
+                <div class="form-group"><label>Teléfono del responsable</label><input type="tel" id="nuc_telefono" placeholder="0412-1234567"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estatus *</label>
+                  <select id="nuc_estatus" required><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select>
+                </div>
+                <div class="form-group"><label>Observaciones</label><input type="text" id="nuc_observaciones" placeholder="Opcional"></div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button type="button" class="btn btn-secondary" id="btnCancelarNucleo">Cancelar</button>
+              <button type="submit" class="btn btn-success" id="btnGuardarNucleo">💾 Guardar núcleo</button>
+            </div>
+          </form>
+
+          <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
+            <button class="btn btn-primary" id="btnNuevoNucleo" style="display:none;">+ Nuevo núcleo</button>
+          </div>
+
+          <div class="subpanel">
+            <h3>📋 Núcleos registrados</h3>
+            <div id="listaNucleos"></div>
+          </div>
+        </div>
+
         <!-- ==================== PANEL: BANCOS DE TIERRA ==================== -->
         <div id="panel-bancos-tierra" class="panel" style="display:none;">
           <div class="panel-header">

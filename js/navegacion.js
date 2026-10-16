@@ -26,6 +26,7 @@ const MENUS = {
     { panel: 'panel-comites',            icono: 'fas fa-building',         texto: 'Comités' },
     { panel: 'panel-consejos',           icono: 'fas fa-landmark',         texto: 'Consejos' },
     { panel: 'panel-formaciones',        icono: 'fas fa-graduation-cap',   texto: 'Formaciones' },
+    { panel: 'panel-nucleos',            icono: 'fas fa-school',           texto: 'Núcleos' },
     { panel: 'panel-dashboard-nacional', icono: 'fas fa-chart-line',       texto: 'Dashboard Nacional' }
   ],
   visor_nacional: [
@@ -61,7 +62,10 @@ const MODULOS_POR_GERENCIA = {
     { panel: 'panel-comites',  icono: 'fas fa-building', texto: 'Comités' },
     { panel: 'panel-consejos', icono: 'fas fa-landmark', texto: 'Consejos' }
   ],
-  'Formación':    [{ panel: 'panel-formaciones',    icono: 'fas fa-graduation-cap', texto: 'Formaciones' }]
+  'Formación':    [
+    { panel: 'panel-formaciones', icono: 'fas fa-graduation-cap', texto: 'Formaciones' },
+    { panel: 'panel-nucleos',     icono: 'fas fa-school',         texto: 'Núcleos' }
+  ]
 };
 
 const TITULOS = {
@@ -77,7 +81,8 @@ const TITULOS = {
   'panel-bancos-tierra':      'Gestión de Bancos de Tierra',
   'panel-brigadas':           'Gestión de Brigadas',
   'panel-comites':            'Gestión de Comités Ecosocialistas',
-  'panel-consejos':           'Gestión de Consejos Ecosocialistas'
+  'panel-consejos':           'Gestión de Consejos Ecosocialistas',
+  'panel-nucleos':            'Gestión de Núcleos Formativos'
 };
 
 /**
@@ -288,6 +293,11 @@ async function cargarContenidoPanel(panelId) {
     case 'panel-consejos': {
       const { cargarPanelConsejos } = await import('./consejos.js');
       cargarPanelConsejos();
+      break;
+    }
+    case 'panel-nucleos': {
+      const { cargarPanelNucleos } = await import('./nucleos.js');
+      cargarPanelNucleos();
       break;
     }
     case 'panel-personal': {
