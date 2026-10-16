@@ -448,69 +448,56 @@ export const TIPOS_ACTIVIDAD_POR_GERENCIA = {
 
 /* ==================== ENTES ADSCRITOS / UTEC ==================== */
 export const ENTES_ADSCRITOS = [
-  'Minec',
-  'Inparques',
-  'Conare',
-  'Bomberos Forestales',
-  'Guardería Ambiental',
-  'Guardia del Pueblo',
-  'GNB',
-  'PNB',
-  'Policía Estadal',
-  'Milicia Bolivariana',
-  'Hidroven',
-  'Corpoelec',
-  'Inatur',
-  'Seniat',
-  'Alcaldía',
-  'Gobernación',
-  'UBV',
-  'UNES',
+  'Conare (Compañía Nacional de Reforestación)',
+  'Inparques (Instituto Nacional de Parques)',
+  'Funda Ambiente',
+  'IFLA (Instituto Nacional Latinoamericano)',
+  'Universidad Popular del Ambiente Fruto Vivas',
+  'SAEC (Servicios Desconcentrados de Servicios Ambientales para el Ecosocialismo)',
+  'ENAFOR (Empresa Nacional Forestal)',
+  'ICLAM (Instituto para el Control y la Conservación de la Cuenca del Lago de Maracaibo)',
+  'FUNZA (Fundación de Parque, Zoológicos y Acuarios)',
   'UTEC',
-  'Iclam',
-  'Fundayacucho',
-  'Misión Venezuela Joven',
-  'Movimiento por la Paz y la Vida',
-  'Robert Serra',
-  'JPSUV',
-  'Minmujer',
-  'Fundaproal',
-  'RIE',
-  'Instituto de Jóvenes',
-  'CMDNNA',
-  'Partido Verde',
-  'BERSOC',
-  'Protección Civil',
-  'INDER',
-  'CDCEM',
-  'IMEC',
-  'SIVA',
   'Ninguno',
   'Otro'
 ];
 
 /* ==================== MINISTERIOS / SISTEMA DE MISIONES ==================== */
 export const MINISTERIOS = [
-  'Ninguno',
-  'Ministerio del Poder Popular para la Salud',
-  'Ministerio del Poder Popular para la Juventud',
   'Ministerio del Poder Popular para la Defensa',
   'Ministerio del Poder Popular para la Cultura',
+  'Ministerio del Poder Popular para Vivienda y Hábitat',
+  'Ministerio del Poder Popular para la Alimentación',
+  'Ministerio del Poder Popular para Ciencia y Tecnología',
+  'Ministerio del Poder Popular Para la Atención de las Aguas',
+  'Ministerio del Poder Popular para la Salud',
+  'Ministerio del Poder Popular para la Pesca y Acuicultura',
+  'Ministerio del Poder Popular para Relaciones Exteriores',
+  'Ministerio del Poder Popular del Despacho de la Presidencia y Seguimiento de la Gestión de Gobierno',
+  'Ministerio del Poder Popular para la Energía Eléctrica',
+  'Ministerio del Poder Popular para el Deporte',
   'Ministerio del Poder Popular para la Educación',
   'Ministerio del Poder Popular para la Educación Universitaria',
-  'Ministerio del Poder Popular para Ciencia y Tecnología',
-  'Ministerio del Poder Popular para la Agricultura Productiva y Tierras',
-  'Ministerio del Poder Popular para la Atención de las Aguas',
-  'Ministerio del Poder Popular para la Energía Eléctrica',
+  'Ministerio del Poder Popular para la Juventud',
   'Ministerio del Poder Popular para la Mujer y la Igualdad de Género',
-  'Ministerio del Poder Popular para las Comunas y los Movimientos Sociales',
   'Ministerio del Poder Popular para Relaciones Interiores, Justicia y Paz',
   'Ministerio del Poder Popular para el Turismo',
-  'Ministerio del Poder Popular para el Deporte',
   'Sistema Nacional de Misiones, Grandes Misiones y Micro-Misiones',
   'Misión Árbol',
+  'Ninguno',
   'Otro'
 ];
+
+/* ==================== TALLAS (listas desplegables estrictas) ==================== */
+export const TALLAS = {
+  camisa:   ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'],
+  pantalon: ['28', '30', '32', '34', '36', '38', '40', '42'],
+  zapato:   ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45'],
+  gorra:    ['Única (ajustable)']
+};
+
+/* ==================== UNIDADES MÉTRICAS ==================== */
+export const UNIDADES_METRICAS = ['kilogramos', 'gramos'];
 
 /* ==================== PROGRAMAS ==================== */
 export const PROGRAMAS = [
