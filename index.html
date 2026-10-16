@@ -555,6 +555,60 @@
           </div>
         </div>
 
+        <!-- ==================== PANEL: CONSEJOS ECOSOCIALISTAS ==================== -->
+        <div id="panel-consejos" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-landmark"></i> Gestión de Consejos Ecosocialistas</h2>
+          </div>
+          <div id="consejosWarning"></div>
+          <form id="formConsejo" style="display:none;">
+            <div class="subpanel">
+              <h3>🏘️ Datos del Consejo</h3>
+              <div class="form-group">
+                <label>Nombre del consejo *</label>
+                <input type="text" id="cjo_nombre" placeholder="Ej: Consejo Ecosocialista Comuna X" required>
+              </div>
+            </div>
+            <div class="subpanel">
+              <h3>📍 Ubicación</h3>
+              <div class="form-row">
+                <div class="form-group"><label>Estado *</label><select id="cjo_estado" required></select></div>
+                <div class="form-group"><label>Municipio *</label><select id="cjo_municipio" disabled required></select></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label>Parroquia *</label><select id="cjo_parroquia" disabled required></select></div>
+                <div class="form-group"><label>Comuna / Circuito *</label><select id="cjo_comuna" disabled required></select></div>
+              </div>
+              <div class="form-group"><label>Consejo Comunal *</label><select id="cjo_consejo" disabled required></select></div>
+            </div>
+            <div class="subpanel">
+              <h3>👤 Responsable y estado</h3>
+              <div class="form-row">
+                <div class="form-group"><label>Responsable principal</label><input type="text" id="cjo_responsable" placeholder="Nombre y apellido"></div>
+                <div class="form-group"><label>Teléfono del responsable</label><input type="tel" id="cjo_telefono" placeholder="0412-1234567"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estatus *</label>
+                  <select id="cjo_estatus" required><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select>
+                </div>
+                <div class="form-group"><label>Observaciones</label><input type="text" id="cjo_observaciones" placeholder="Opcional"></div>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button type="button" class="btn btn-secondary" id="btnCancelarConsejo">Cancelar</button>
+              <button type="submit" class="btn btn-success" id="btnGuardarConsejo">💾 Guardar consejo</button>
+            </div>
+          </form>
+          <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
+            <button class="btn btn-primary" id="btnNuevaConsejo" style="display:none;">+ Nuevo consejo</button>
+          </div>
+          <div class="subpanel">
+            <h3>📋 Consejos registrados</h3>
+            <div id="listaConsejos"></div>
+          </div>
+        </div>
+
         <!-- ==================== PANEL: BANCOS DE TIERRA ==================== -->
         <div id="panel-bancos-tierra" class="panel" style="display:none;">
           <div class="panel-header">

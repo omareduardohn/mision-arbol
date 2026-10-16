@@ -24,6 +24,7 @@ const MENUS = {
     { panel: 'panel-bancos-tierra',      icono: 'fas fa-mountain',         texto: 'Bancos de Tierra' },
     { panel: 'panel-brigadas',           icono: 'fas fa-users',            texto: 'Brigadas' },
     { panel: 'panel-comites',            icono: 'fas fa-building',         texto: 'Comités' },
+    { panel: 'panel-consejos',           icono: 'fas fa-landmark',         texto: 'Consejos' },
     { panel: 'panel-formaciones',        icono: 'fas fa-graduation-cap',   texto: 'Formaciones' },
     { panel: 'panel-dashboard-nacional', icono: 'fas fa-chart-line',       texto: 'Dashboard Nacional' }
   ],
@@ -57,7 +58,8 @@ const MODULOS_POR_GERENCIA = {
   'Plantación':   [{ panel: 'panel-bancos-tierra',  icono: 'fas fa-mountain',       texto: 'Bancos de Tierra' }],
   'Organización': [
     { panel: 'panel-brigadas', icono: 'fas fa-users',    texto: 'Brigadas' },
-    { panel: 'panel-comites',  icono: 'fas fa-building', texto: 'Comités' }
+    { panel: 'panel-comites',  icono: 'fas fa-building', texto: 'Comités' },
+    { panel: 'panel-consejos', icono: 'fas fa-landmark', texto: 'Consejos' }
   ],
   'Formación':    [{ panel: 'panel-formaciones',    icono: 'fas fa-graduation-cap', texto: 'Formaciones' }]
 };
@@ -74,7 +76,8 @@ const TITULOS = {
   'panel-viveros':            'Gestión de Viveros',
   'panel-bancos-tierra':      'Gestión de Bancos de Tierra',
   'panel-brigadas':           'Gestión de Brigadas',
-  'panel-comites':            'Gestión de Comités Ecosocialistas'
+  'panel-comites':            'Gestión de Comités Ecosocialistas',
+  'panel-consejos':           'Gestión de Consejos Ecosocialistas'
 };
 
 /**
@@ -280,6 +283,11 @@ async function cargarContenidoPanel(panelId) {
     case 'panel-comites': {
       const { cargarPanelComites } = await import('./comites.js');
       cargarPanelComites();
+      break;
+    }
+    case 'panel-consejos': {
+      const { cargarPanelConsejos } = await import('./consejos.js');
+      cargarPanelConsejos();
       break;
     }
     case 'panel-personal': {
