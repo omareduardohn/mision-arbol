@@ -161,7 +161,8 @@ function inicializarFormData(perfil) {
       observacion: '',
       registroFotografico: '',
       gerenciaVinculada2: '',
-      gerenciaVinculada3: ''
+      gerenciaVinculada3: '',
+      vinculaciones: []
     }
   };
 }
@@ -2733,6 +2734,22 @@ function renderPaso5(body) {
         </div>
       </div>
     </div>
+
+    <!-- ===== BLOQUE 7: Personal del equipo vinculado ===== -->
+    <div class="subpanel">
+      <h3>👥 Personal del equipo que participó</h3>
+      <p style="font-size: 12px; color: #666; margin-bottom: 12px;">
+        Selecciona el personal de tu equipo (cargado en "Mi Personal") que participó
+        y especifica en qué ayudó cada uno.
+      </p>
+      <div class="form-group">
+        <div style="display:flex;gap:8px;align-items:stretch;">
+          <select id="cie-pers-add" style="flex:1;"><option value="">Cargando personal...</option></select>
+          <button type="button" class="btn btn-primary" id="cie-pers-btn" style="white-space:nowrap;">+ Agregar</button>
+        </div>
+      </div>
+      <div id="cie-pers-lista"></div>
+    </div>
   `;
 
   /* ===== Wiring ===== */
@@ -2766,6 +2783,77 @@ function renderPaso5(body) {
   document.getElementById('cie-ger3')?.addEventListener('change', (e) => {
     c.gerenciaVinculada3 = e.target.value;
   });
+
+  // Personal vinculado (precargado desde /personal)
+  wireVinculacionPersonal(c);
+}
+
+/* Carga el personal del equipo y gestiona la lista de vinculados con su "qué hizo". */
+function wireVinculacionPersonal(c) {
+  const selectAdd = document.getElementById('cie-pers-add');
+  const btnAdd = document.getElementById('cie-pers-btn');
+  const lista = document.getElementById('cie-pers-lista');
+  if (!selectAdd || !btnAdd || !lista) return;
+
+  if (!Array.isArray(c.vinculaciones)) c.vinculaciones = [];
+
+  const perfil = window.__perfil;
+  let personalCache = [];
+
+  const renderLista = () => {
+    if (c.vinculaciones.length === 0) {
+      lista.innerHTML = '<p style="font-size:12px;color:#999;text-align:center;padding:10px;">Sin personal vinculado.</p>';
+      return;
+    }
+    lista.innerHTML = c.vinculaciones.map((v, i) => `
+      <div style="display:grid;grid-template-columns:1fr 1.2fr 36px;gap:8px;align-items:center;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:500;">${escapeHTML(v.nombre || '—')}</span>
+        <input type="text" class="cie-pers-quehizo" data-i="${i}" placeholder="¿En qué ayudó?" value="${escapeHTML(v.queHizo || '')}">
+        <button type="button" class="btn btn-danger btn-sm cie-pers-quitar" data-i="${i}">✕</button>
+      </div>`).join('');
+
+    lista.querySelectorAll('.cie-pers-quehizo').forEach((inp) => {
+      inp.addEventListener('input', (e) => { c.vinculaciones[Number(e.target.dataset.i)].queHizo = e.target.value; });
+    });
+    lista.querySelectorAll('.cie-pers-quitar').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        c.vinculaciones.splice(Number(btn.dataset.i), 1);
+        renderLista();
+      });
+    });
+  };
+
+  btnAdd.addEventListener('click', () => {
+    const id = selectAdd.value;
+    const pers = personalCache.find((d) => d.id === id);
+    if (!id || !pers) return;
+    if (c.vinculaciones.some((v) => v.personalId === id)) return; // evita duplicados
+    c.vinculaciones.push({ personalId: id, nombre: pers.nombreCompleto || pers.nombre || '—', queHizo: '' });
+    renderLista();
+  });
+
+  // Cargar personal del equipo
+  (async () => {
+    try {
+      let q = collection(db, 'personal');
+      if (perfil?.estado) q = query(q, where('estado', '==', perfil.estado));
+      else if (perfil?.gerencia) q = query(q, where('gerencia', '==', perfil.gerencia));
+      const snap = await getDocs(q);
+      personalCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.nombreCompleto || '').localeCompare(b.nombreCompleto || ''));
+      selectAdd.innerHTML = '<option value="">Seleccione...</option>' +
+        personalCache.map((d) => {
+          const nom = d.nombreCompleto || d.nombre || '—';
+          return `<option value="${escapeHTML(d.id)}">${escapeHTML(nom)}${d.cargo ? ' — ' + escapeHTML(d.cargo) : ''}</option>`;
+        }).join('');
+      if (personalCache.length === 0) selectAdd.innerHTML = '<option value="">No hay personal en "Mi Personal"</option>';
+    } catch (e) {
+      console.warn('[Vinculación] No se pudo cargar personal:', e);
+      selectAdd.innerHTML = '<option value="">No disponible</option>';
+    }
+  })();
+
+  renderLista();
 }
 
 /* ==================== ENVÍO ==================== */
@@ -2897,7 +2985,8 @@ function construirDocumentoReporte(perfil) {
       observacion:         cierre.observacion || '',
       registroFotografico: cierre.registroFotografico || '',
       gerenciaVinculada2:  cierre.gerenciaVinculada2 || '',
-      gerenciaVinculada3:  cierre.gerenciaVinculada3 || ''
+      gerenciaVinculada3:  cierre.gerenciaVinculada3 || '',
+      vinculaciones:       cierre.vinculaciones || []
     },
 
         // 👇 NUEVOS CAMPOS
