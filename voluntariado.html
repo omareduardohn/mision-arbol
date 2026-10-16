@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voluntariado — Misión Árbol</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+      padding: 32px;
+      width: 100%;
+      max-width: 560px;
+    }
+    h1 { color: #1b5e20; font-size: 24px; margin-bottom: 6px; }
+    p.sub { color: #666; font-size: 14px; margin-bottom: 20px; line-height: 1.5; }
+    label { display: block; font-weight: 600; color: #2e7d32; font-size: 13px; margin: 14px 0 4px; }
+    input, select, textarea {
+      width: 100%; padding: 10px 12px; border: 2px solid #c8e6c9;
+      border-radius: 8px; font-size: 14px; font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #2e7d32; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .checks { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
+    .checks label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; margin: 0; color: #333; }
+    .checks input { width: auto; }
+    button {
+      margin-top: 22px; width: 100%; padding: 12px; border: none; border-radius: 8px;
+      background: #2e7d32; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    #msg { margin-top: 14px; font-size: 14px; text-align: center; min-height: 20px; }
+    #msg.ok { color: #2e7d32; }
+    #msg.err { color: #c62828; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🌳 Voluntariado Misión Árbol</h1>
+    <p class="sub">
+      ¿Quieres sumarte a reforestaciones, plantaciones o la producción de plantas?
+      Déjanos tus datos y te contactaremos. No estás vinculado a ninguna brigada,
+      comité o consejo: es un registro de interés ciudadano.
+    </p>
+
+    <form id="formVoluntario">
+      <label>Nombre completo *</label>
+      <input type="text" id="v_nombre" placeholder="Nombre y apellido" required>
+
+      <label>Cédula *</label>
+      <input type="text" id="v_cedula" placeholder="V-12345678" required>
+
+      <div class="row">
+        <div>
+          <label>Teléfono *</label>
+          <input type="tel" id="v_telefono" placeholder="0412-1234567" required>
+        </div>
+        <div>
+          <label>Correo</label>
+          <input type="email" id="v_correo" placeholder="correo@ejemplo.com">
+        </div>
+      </div>
+
+      <label>Estado *</label>
+      <select id="v_estado" required>
+        <option value="">Seleccione...</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label>Municipio *</label>
+          <input type="text" id="v_municipio" placeholder="Municipio" required>
+        </div>
+        <div>
+          <label>Parroquia</label>
+          <input type="text" id="v_parroquia" placeholder="Parroquia">
+        </div>
+      </div>
+
+      <label>¿En qué te interesa participar?</label>
+      <div class="checks" id="v_intereses">
+        <label><input type="checkbox" value="Reforestaciones"> Reforestaciones</label>
+        <label><input type="checkbox" value="Plantaciones"> Plantaciones</label>
+        <label><input type="checkbox" value="Producción de plantas"> Producción de plantas</label>
+        <label><input type="checkbox" value="Formación ambiental"> Formación ambiental</label>
+        <label><input type="checkbox" value="Otro"> Otro</label>
+      </div>
+
+      <label>Comentario (opcional)</label>
+      <textarea id="v_comentario" rows="3" placeholder="Cuéntanos algo más..."></textarea>
+
+      <button type="submit" id="btnEnviar">📝 Enviar registro</button>
+    </form>
+    <div id="msg"></div>
+  </div>
+
+  <script type="module">
+    import { db } from "./js/firebase-config.js";
+    import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const ESTADOS = [
+      "Amazonas","Anzoátegui","Apure","Aragua","Barinas","Bolívar","Carabobo",
+      "Cojedes","Delta Amacuro","Distrito Capital","Falcón","Guárico","Lara",
+      "Mérida","Miranda","Monagas","Nueva Esparta","Portuguesa","Sucre",
+      "Táchira","Trujillo","La Guaira","Yaracuy","Zulia"
+    ];
+    const selEstado = document.getElementById('v_estado');
+    selEstado.innerHTML = '<option value="">Seleccione...</option>' +
+      ESTADOS.map(e => `<option value="${e}">${e}</option>`).join('');
+
+    const form = document.getElementById('formVoluntario');
+    const btn = document.getElementById('btnEnviar');
+    const msg = document.getElementById('msg');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nombre = document.getElementById('v_nombre').value.trim();
+      const cedula = document.getElementById('v_cedula').value.trim();
+      const telefono = document.getElementById('v_telefono').value.trim();
+      const correo = document.getElementById('v_correo').value.trim();
+      const estado = document.getElementById('v_estado').value;
+      const municipio = document.getElementById('v_municipio').value.trim();
+      const parroquia = document.getElementById('v_parroquia').value.trim();
+      const intereses = Array.from(document.querySelectorAll('#v_intereses input:checked')).map(c => c.value);
+      const comentario = document.getElementById('v_comentario').value.trim();
+
+      if (!nombre || !cedula || !telefono || !estado || !municipio) {
+        msg.className = 'err';
+        msg.textContent = 'Completa los campos obligatorios (*).';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Enviando...';
+      try {
+        await addDoc(collection(db, 'voluntarios'), {
+          nombre,
+          cedula,
+          telefono,
+          correo,
+          estado,
+          municipio,
+          parroquia,
+          intereses,
+          comentario,
+          aprobado: false,
+          creadoEn: serverTimestamp()
+        });
+        msg.className = 'ok';
+        msg.textContent = '✅ ¡Gracias! Tu registro fue enviado. Te contactaremos pronto.';
+        form.reset();
+      } catch (err) {
+        console.error(err);
+        msg.className = 'err';
+        msg.textContent = 'No se pudo enviar. Intenta de nuevo más tarde.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📝 Enviar registro';
+      }
+    });
+  </script>
+</body>
+</html>

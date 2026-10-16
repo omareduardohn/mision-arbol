@@ -27,10 +27,12 @@ const MENUS = {
     { panel: 'panel-consejos',           icono: 'fas fa-landmark',         texto: 'Consejos' },
     { panel: 'panel-formaciones',        icono: 'fas fa-graduation-cap',   texto: 'Formaciones' },
     { panel: 'panel-nucleos',            icono: 'fas fa-school',           texto: 'Núcleos' },
+    { panel: 'panel-voluntariado',       icono: 'fas fa-hand-holding-heart', texto: 'Voluntariado' },
     { panel: 'panel-dashboard-nacional', icono: 'fas fa-chart-line',       texto: 'Dashboard Nacional' }
   ],
   visor_nacional: [
-    { panel: 'panel-dashboard-nacional', icono: 'fas fa-chart-line', texto: 'Dashboard Nacional' }
+    { panel: 'panel-dashboard-nacional', icono: 'fas fa-chart-line', texto: 'Dashboard Nacional' },
+    { panel: 'panel-voluntariado',       icono: 'fas fa-hand-holding-heart', texto: 'Voluntariado' }
   ],
   reporte_nacional: [
     { panel: 'panel-reporte-nacional', icono: 'fas fa-flag',           texto: 'Reporte Nacional' },
@@ -82,7 +84,8 @@ const TITULOS = {
   'panel-brigadas':           'Gestión de Brigadas',
   'panel-comites':            'Gestión de Comités Ecosocialistas',
   'panel-consejos':           'Gestión de Consejos Ecosocialistas',
-  'panel-nucleos':            'Gestión de Núcleos Formativos'
+  'panel-nucleos':            'Gestión de Núcleos Formativos',
+  'panel-voluntariado':       'Voluntariado'
 };
 
 /**
@@ -298,6 +301,11 @@ async function cargarContenidoPanel(panelId) {
     case 'panel-nucleos': {
       const { cargarPanelNucleos } = await import('./nucleos.js');
       cargarPanelNucleos();
+      break;
+    }
+    case 'panel-voluntariado': {
+      const { cargarPanelVoluntariado } = await import('./voluntariado.js');
+      cargarPanelVoluntariado();
       break;
     }
     case 'panel-personal': {
