@@ -61,6 +61,7 @@ function inicializarFormData(perfil) {
       consejoComunal: '',
       lugar: '',
       responsable: perfil.nombre || '',
+      responsablePersonalId: '',
       telefono: ''
     },
 
@@ -441,7 +442,7 @@ function renderPaso1(body) {
       <div class="form-row">
         <div class="form-group">
           <label>Responsable principal *</label>
-          <input type="text" id="dg-responsable" value="${escapeHTML(dg.responsable)}">
+          <select id="dg-responsable"><option value="">Cargando personal...</option></select>
         </div>
         <div class="form-group">
           <label>Teléfono de contacto *</label>
@@ -456,7 +457,7 @@ function renderPaso1(body) {
   document.getElementById('dg-fecha').addEventListener('change', (e) => { dg.fecha = e.target.value; });
   document.getElementById('dg-hora').addEventListener('change',  (e) => { dg.hora = e.target.value; });
   document.getElementById('dg-lugar').addEventListener('input',   (e) => { dg.lugar = e.target.value; });
-  document.getElementById('dg-responsable').addEventListener('input', (e) => { dg.responsable = e.target.value; });
+  // Responsable: ahora es un select precargado (ver cargarResponsableDesdePersonal).
   document.getElementById('dg-telefono').addEventListener('input',    (e) => { dg.telefono = e.target.value; });
 
   /* ===== Cascada territorial ===== */
@@ -549,6 +550,54 @@ function renderPaso1(body) {
   selConsejo.addEventListener('change', () => {
     dg.consejoComunal = selConsejo.value;
   });
+
+  // Responsable: dropdown precargado desde /personal
+  cargarResponsableDesdePersonal(dg);
+}
+
+/* Carga el personal del usuario (estado/gerencia) y lo pone en el select de responsable. */
+async function cargarResponsableDesdePersonal(dg) {
+  const sel = document.getElementById('dg-responsable');
+  if (!sel) return;
+  const perfil = window.__perfil;
+  try {
+    let q = collection(db, 'personal');
+    if (perfil?.estado) q = query(q, where('estado', '==', perfil.estado));
+    else if (perfil?.gerencia) q = query(q, where('gerencia', '==', perfil.gerencia));
+    const snap = await getDocs(q);
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.nombreCompleto || '').localeCompare(b.nombreCompleto || ''));
+
+    const idActual = dg.responsablePersonalId || '';
+    const nombreActual = dg.responsable || '';
+
+    if (docs.length === 0) {
+      sel.innerHTML = '<option value="">No hay personal en "Mi Personal"</option>';
+      return;
+    }
+
+    sel.innerHTML = '<option value="">Seleccione...</option>' +
+      docs.map((d) => {
+        const nom = d.nombreCompleto || d.nombre || '—';
+        const seleccionado = (d.id === idActual) || (!idActual && nom === nombreActual);
+        return `<option value="${escapeHTML(d.id)}" data-nombre="${escapeHTML(nom)}" ${seleccionado ? 'selected' : ''}>${escapeHTML(nom)}${d.cargo ? ' — ' + escapeHTML(d.cargo) : ''}</option>`;
+      }).join('');
+
+    sel.addEventListener('change', () => {
+      const opt = sel.options[sel.selectedIndex];
+      dg.responsablePersonalId = sel.value;
+      dg.responsable = opt?.dataset.nombre || '';
+      const pers = docs.find((d) => d.id === sel.value);
+      if (pers?.telefono) {
+        dg.telefono = pers.telefono;
+        const telEl = document.getElementById('dg-telefono');
+        if (telEl) telEl.value = pers.telefono;
+      }
+    });
+  } catch (e) {
+    console.warn('[Responsable] No se pudo cargar personal:', e);
+    sel.innerHTML = '<option value="">No disponible</option>';
+  }
 }
 
 function renderPaso2(body) {
@@ -2614,7 +2663,7 @@ function renderPaso5(body) {
       <h3>🗓️ Planificación</h3>
       <div class="form-group">
         <label>¿Esta actividad fue planificada? *</label>
-        ${htmlRadioGroup('cie-planificada', ['Sí', 'No', 'Cumplimiento Extra'], c.fuePlanificada)}
+        ${htmlRadioGroup('cie-planificada', ['Sí', 'Cumplimiento Extra'], c.fuePlanificada)}
       </div>
     </div>
 
@@ -2827,6 +2876,7 @@ function construirDocumentoReporte(perfil) {
       consejo:     dg.consejoComunal,
       lugar:       dg.lugar,
       responsable: dg.responsable,
+      responsablePersonalId: dg.responsablePersonalId || '',
       telefono:    dg.telefono
     },
 
