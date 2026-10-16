@@ -46,6 +46,7 @@ export async function cargarPanelControl() {
   if (!window.__adminWired) {
     document.getElementById('btnDescargarReporte')?.addEventListener('click', descargarReporte);
     document.getElementById('btnDescargarPlanif')?.addEventListener('click', descargarPlanificaciones);
+    document.getElementById('btnPrevisualizarReporte')?.addEventListener('click', previsualizarReportes);
     document.getElementById('btnConfirmarAprobacion')?.addEventListener('click', confirmarAprobacion);
     document.getElementById('btnCancelarAprobacion')?.addEventListener('click', cerrarModalAprobar);
     document.getElementById('btnCerrarModalAprobar')?.addEventListener('click', cerrarModalAprobar);
@@ -480,6 +481,65 @@ async function descargarReporte() {
   } catch (e) {
     console.error(e);
     toast('Error al descargar: ' + (e.message || 'desconocido'));
+  } finally {
+    loader(false);
+  }
+}
+
+/**
+ * Muestra una tabla de vista previa con las filas que se descargarían,
+ * según las columnas seleccionadas y el rango de fechas, sin descargar.
+ */
+async function previsualizarReportes() {
+  const desde = document.getElementById('fechaDesdeDescarga')?.value;
+  const hasta = document.getElementById('fechaHastaDescarga')?.value;
+  const cont = document.getElementById('previewReportes');
+  if (!cont) return;
+
+  const columnas = obtenerColumnasSeleccionadas();
+  if (columnas.length === 0) return toast('Selecciona al menos una columna');
+
+  loader(true);
+  try {
+    let ref = collection(db, 'reportes');
+    const snap = await getDocs(query(ref, orderBy('fechaRegistro', 'desc')));
+    let reportes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (desde) reportes = reportes.filter(r => {
+      const f = r.fechaRegistro?.toDate?.();
+      return f && f >= new Date(desde);
+    });
+    if (hasta) reportes = reportes.filter(r => {
+      const f = r.fechaRegistro?.toDate?.();
+      return f && f <= new Date(hasta + 'T23:59:59');
+    });
+
+    const limite = 20;
+    const muestra = reportes.slice(0, limite);
+
+    const thead = `<tr>${columnas.map(c => `<th>${escapeHTML(c.label)}</th>`).join('')}</tr>`;
+    const tbody = muestra.map(r => {
+      return `<tr>${columnas.map(col => {
+        const valor = getByPath(r, col.ruta);
+        const formateado = formatearValorCSV(valor, col.tipo);
+        return `<td>${escapeHTML(formateado)}</td>`;
+      }).join('')}</tr>`;
+    }).join('') || `<tr><td colspan="${columnas.length}">Sin datos en el rango seleccionado.</td></tr>`;
+
+    cont.innerHTML = `
+      <p style="font-size:12px;color:#666;margin-bottom:8px;">
+        Vista previa: <strong>${muestra.length}</strong> de <strong>${reportes.length}</strong> reportes
+        (primeras ${limite} filas, ${columnas.length} columnas).
+      </p>
+      <div class="table-container" style="max-height:380px;">
+        <table class="tabla-dashboard">
+          <thead>${thead}</thead>
+          <tbody>${tbody}</tbody>
+        </table>
+      </div>`;
+  } catch (e) {
+    console.error(e);
+    cont.innerHTML = '<p style="color:red;">Error al previsualizar: ' + (e.message || 'desconocido') + '</p>';
   } finally {
     loader(false);
   }
