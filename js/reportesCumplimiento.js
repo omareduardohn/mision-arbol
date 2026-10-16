@@ -300,6 +300,21 @@ function validarPaso(paso) {
         return false;
       }
     }
+
+    // Validación del flujo "Otro (especificar)" para vínculos (brigada/comité/consejo)
+    for (const campo of (esquema.campos || [])) {
+      if (!['brigada', 'comite', 'consejo'].includes(campo.tipo)) continue;
+      if (!campoVisible(campo, data)) continue;
+      if (data[campo.id] !== '__otro__') continue;
+      if (data[campo.id + 'Reportar'] !== 'sí') {
+        toast('Para "Otro (especificar)" debe reportarlo a la nacional (Sí) para continuar');
+        return false;
+      }
+      if (!(data[campo.id + 'OtroNombre'] || '').trim()) {
+        toast('Ingresa el nombre para reportarlo a la nacional');
+        return false;
+      }
+    }
   }
 
   if (paso === 4) {
@@ -980,8 +995,17 @@ function renderCampoGenerico(cont, campo, data) {
       inputHTML = `<input type="text" id="${id}" value="${escapeHTML(data[campo.id] || '')}">`;
   }
 
+  // Notificación "Otro (especificar)" para vínculos (brigada/comité/consejo)
+  if (['brigada', 'comite', 'consejo'].includes(campo.tipo) && data[campo.id] === '__otro__') {
+    inputHTML += renderNotificacionVinculo(id, campo, data);
+  }
+
   wrapper.innerHTML = `<label>${escapeHTML(campo.label)}${req}</label>${hint}${inputHTML}`;
   cont.appendChild(wrapper);
+
+  if (['brigada', 'comite', 'consejo'].includes(campo.tipo) && data[campo.id] === '__otro__') {
+    wireNotificacionVinculo(id, campo, data);
+  }
 
   wireCampoGenerico(id, campo, data);
 }
@@ -1064,21 +1088,69 @@ async function cargarOpcionesColeccion(coleccion, id, data, campo) {
     const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (labelDe[coleccion](a)).localeCompare(labelDe[coleccion](b)));
 
+    const esVinculo = ['brigadas', 'comitesEcosocialistas', 'consejosEcosocialistas'].includes(coleccion);
     const valorActual = data[campo.id] || '';
+    const opcionOtro = esVinculo
+      ? `<option value="__otro__" ${valorActual === '__otro__' ? 'selected' : ''}>Otro (especificar)</option>`
+      : '';
     el.innerHTML = '<option value="">Seleccione...</option>' +
-      docs.map((d) => `<option value="${escapeHTML(d.id)}" ${d.id === valorActual ? 'selected' : ''}>${escapeHTML(labelDe[coleccion](d))}</option>`).join('');
+      docs.map((d) => `<option value="${escapeHTML(d.id)}" ${d.id === valorActual ? 'selected' : ''}>${escapeHTML(labelDe[coleccion](d))}</option>`).join('') +
+      opcionOtro;
 
-    if (docs.length === 0) el.innerHTML = '<option value="">Sin registros</option>';
+    if (docs.length === 0 && !esVinculo) el.innerHTML = '<option value="">Sin registros</option>';
 
     el.addEventListener('change', (e) => {
       data[campo.id] = e.target.value;
       const doc = docs.find((d) => d.id === e.target.value);
       data[campo.id + 'Label'] = doc ? labelDe[coleccion](doc) : '';
+      if (e.target.value === '__otro__') renderizarPaso();
     });
   } catch (e) {
     console.warn('[esquema] No se pudo cargar ' + coleccion + ':', e);
     el.innerHTML = '<option value="">No disponible</option>';
   }
+}
+
+/* Notificación + formulario cuando se elige "Otro (especificar)" en un vínculo. */
+function renderNotificacionVinculo(id, campo, data) {
+  const tipoLabel = campo.label.replace(/\s*\*?$/, '');
+  const reportar = data[campo.id + 'Reportar'] || '';
+  const nombre = data[campo.id + 'OtroNombre'] || '';
+  return `
+    <div style="margin-top:8px;padding:10px 12px;background:#fff8e1;border-left:4px solid #ffc107;border-radius:8px;">
+      <p style="margin:0;font-size:12px;color:#856404;line-height:1.4;">
+        ⚠️ Este <strong>${escapeHTML(tipoLabel)}</strong> no está registrado. Debe estar
+        debidamente reportado a la <strong>Gerencia Nacional de Organización</strong> para
+        ser tomado en cuenta en la planificación y el cumplimiento.
+      </p>
+      <div class="form-group" style="margin-top:8px;">
+        <label style="font-size:12px;">¿Desea reportarlo a la nacional?</label>
+        <select id="${id}-reportar">
+          <option value="">Seleccione...</option>
+          <option value="sí" ${reportar === 'sí' ? 'selected' : ''}>Sí, reportar</option>
+          <option value="no" ${reportar === 'no' ? 'selected' : ''}>No</option>
+        </select>
+      </div>
+      ${reportar === 'sí' ? `
+        <div class="form-group">
+          <label style="font-size:12px;">Nombre del ${escapeHTML(tipoLabel)} *</label>
+          <input type="text" id="${id}-otro-nombre" value="${escapeHTML(nombre)}" placeholder="Nombre...">
+        </div>` : ''}
+      ${reportar === 'no' ? `
+        <p style="margin:8px 0 0;font-size:12px;color:#c62828;font-weight:600;">
+          No puede continuar la carga sin reportarlo a la nacional.
+        </p>` : ''}
+    </div>`;
+}
+
+function wireNotificacionVinculo(id, campo, data) {
+  document.getElementById(id + '-reportar')?.addEventListener('change', (e) => {
+    data[campo.id + 'Reportar'] = e.target.value;
+    renderizarPaso();
+  });
+  document.getElementById(id + '-otro-nombre')?.addEventListener('input', (e) => {
+    data[campo.id + 'OtroNombre'] = e.target.value;
+  });
 }
 
 function renderEspeciesWidgetGenerico(containerId, data, campo) {
