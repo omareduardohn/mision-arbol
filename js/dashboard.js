@@ -22,6 +22,9 @@ let unsubBancos = null;
 let unsubBrigadas = null;
 let unsubPlanificacion = null;
 let unsubFormaciones = null;
+let unsubComites = null;
+let unsubConsejos = null;
+let unsubNucleos = null;
 let chartNacional = null;
 let chartRecursos = null;
 let chartBrigadasMunicipio = null;
@@ -41,6 +44,9 @@ let bancosCache = [];
 let brigadasCache = [];
 let planificacionCache = [];
 let formacionesCache = [];
+let comitesCache = [];
+let consejosCache = [];
+let nucleosCache = [];
 
 /* ==================== FILTROS GLOBALES ==================== */
 const filtrosGlobales = {
@@ -250,6 +256,27 @@ function brigadasEnTerritorio(filtro) {
   return recursosEnTerritorio(brigadasCache, filtro);
 }
 
+function comitesEnTerritorio(filtro) {
+  return recursosEnTerritorio(comitesCache, filtro);
+}
+
+function consejosEnTerritorio(filtro) {
+  return recursosEnTerritorio(consejosCache, filtro);
+}
+
+function nucleosEnTerritorio(filtro) {
+  const estado = normalizeText(filtro.estado);
+  const municipio = normalizeText(filtro.municipio);
+  const parroquia = normalizeText(filtro.parroquia);
+  return nucleosCache.filter((n) => {
+    const t = n?.territorio || {};
+    if (estado && normalizeText(t.estado) !== estado) return false;
+    if (municipio && normalizeText(t.municipio) !== municipio) return false;
+    if (parroquia && normalizeText(t.parroquia) !== parroquia) return false;
+    return true;
+  });
+}
+
 function planificacionEnTerritorio(filtro) {
   const estado = normalizeText(filtro.estado);
   const municipio = normalizeText(filtro.municipio);
@@ -400,6 +427,14 @@ function actividadesPorPersona(filtro = {}) {
       });
     }
     if (r.usuarioNombre) nombres.add(String(r.usuarioNombre).trim());
+    // Responsable principal (Fase 4a)
+    if (r.datosGenerales?.responsable) nombres.add(String(r.datosGenerales.responsable).trim());
+    // Personal vinculado (Fase 4c)
+    if (Array.isArray(r.cierre?.vinculaciones)) {
+      r.cierre.vinculaciones.forEach(v => {
+        if (v?.nombre) nombres.add(v.nombre.trim());
+      });
+    }
 
     const fecha = toDateValue(r.fechaRegistro || r?.actividad?.fecha);
     const fechaStr = fecha ? fecha.toISOString().slice(0, 10) : '';
@@ -720,6 +755,9 @@ function renderResumenNivel(filtro = {}) {
   const viv = contarRecursosActivos(viverosEnTerritorio(filtro));
   const ban = contarRecursosActivos(bancosEnTerritorio(filtro));
   const bri = contarRecursosActivos(brigadasEnTerritorio(filtro));
+  const com = contarRecursosActivos(comitesEnTerritorio(filtro));
+  const con = contarRecursosActivos(consejosEnTerritorio(filtro));
+  const nuc = contarRecursosActivos(nucleosEnTerritorio(filtro));
 
   // Personal con actividades
   const personal = actividadesPorPersona(filtro);
@@ -735,11 +773,14 @@ function renderResumenNivel(filtro = {}) {
       <div class="kpi-resumen total">📋 ${indicadores.total} reportes</div>
       <div class="kpi-resumen porcentaje">🎯 ${participantes.totalGeneral} participantes</div>
     </div>
-    ${(viv.total + ban.total + bri.total) > 0 ? `
+    ${(viv.total + ban.total + bri.total + com.total + con.total + nuc.total) > 0 ? `
       <div class="mini-panel-resumen" style="margin-top: 8px;">
         ${viv.total > 0 ? `<div class="kpi-resumen activo">🏡 ${viv.activos}/${viv.total} viveros activos</div>` : ''}
         ${ban.total > 0 ? `<div class="kpi-resumen activo">🌾 ${ban.activos}/${ban.total} bancos activos</div>` : ''}
         ${bri.total > 0 ? `<div class="kpi-resumen activo">🎽 ${bri.activos}/${bri.total} brigadas activas</div>` : ''}
+        ${com.total > 0 ? `<div class="kpi-resumen activo">🏛️ ${com.activos}/${com.total} comités</div>` : ''}
+        ${con.total > 0 ? `<div class="kpi-resumen activo">🏘️ ${con.activos}/${con.total} consejos</div>` : ''}
+        ${nuc.total > 0 ? `<div class="kpi-resumen activo">🎓 ${nuc.activos}/${nuc.total} núcleos</div>` : ''}
       </div>
     ` : ''}
     ${renderBloquePlanificacion(filtro)}
@@ -1440,6 +1481,9 @@ function renderEstados() {
     const viv = viverosEnTerritorio({ estado }).length;
     const ban = bancosEnTerritorio({ estado }).length;
     const bri = brigadasEnTerritorio({ estado }).length;
+    const com = comitesEnTerritorio({ estado }).length;
+    const con = consejosEnTerritorio({ estado }).length;
+    const nuc = nucleosEnTerritorio({ estado }).length;
     const activo = isTerritorioActivo(estado, {}, 'estado');
     const semaforo = calcularSemaforo(estado, {}, 'estado');
 
@@ -1456,6 +1500,9 @@ function renderEstados() {
           ${viv > 0 ? `<span>🏡 ${viv} viveros</span>` : ''}
           ${ban > 0 ? `<span>🌾 ${ban} bancos</span>` : ''}
           ${bri > 0 ? `<span>🎽 ${bri} brigadas</span>` : ''}
+          ${com > 0 ? `<span>🏛️ ${com} comités</span>` : ''}
+          ${con > 0 ? `<span>🏘️ ${con} consejos</span>` : ''}
+          ${nuc > 0 ? `<span>🎓 ${nuc} núcleos</span>` : ''}
         </div>
         <div class="tarjeta-badge">${activo ? 'ACTIVO' : 'INACTIVO'}</div>
       </div>
@@ -2232,6 +2279,51 @@ function suscribirRecursos(perfil) {
   } else {
     formacionesCache = [];
   }
+
+  // Comités ecosocialistas (organización)
+  const verComites = rol === 'control' || rol === 'visor_nacional'
+    || (rol === 'dashboard_nacional' && gerencia === 'Organización');
+  if (verComites) {
+    unsubComites = onSnapshot(collection(db, 'comitesEcosocialistas'), (snap) => {
+      comitesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderJerarquia();
+    }, (err) => {
+      console.warn('[Dashboard] comitesEcosocialistas:', err.code);
+      comitesCache = [];
+    });
+  } else {
+    comitesCache = [];
+  }
+
+  // Consejos ecosocialistas
+  const verConsejos = rol === 'control' || rol === 'visor_nacional'
+    || (rol === 'dashboard_nacional' && gerencia === 'Organización');
+  if (verConsejos) {
+    unsubConsejos = onSnapshot(collection(db, 'consejosEcosocialistas'), (snap) => {
+      consejosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderJerarquia();
+    }, (err) => {
+      console.warn('[Dashboard] consejosEcosocialistas:', err.code);
+      consejosCache = [];
+    });
+  } else {
+    consejosCache = [];
+  }
+
+  // Núcleos formativos (formación)
+  const verNucleos = rol === 'control' || rol === 'visor_nacional'
+    || (rol === 'dashboard_nacional' && gerencia === 'Formación');
+  if (verNucleos) {
+    unsubNucleos = onSnapshot(collection(db, 'nucleos'), (snap) => {
+      nucleosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderJerarquia();
+    }, (err) => {
+      console.warn('[Dashboard] nucleos:', err.code);
+      nucleosCache = [];
+    });
+  } else {
+    nucleosCache = [];
+  }
 }
 
 /* ==================== CLEANUP EN LOGOUT ==================== */
@@ -2249,6 +2341,9 @@ function limpiarSuscripcionesDashboard() {
   if (unsubBrigadas) { try { unsubBrigadas(); } catch (_) {} unsubBrigadas = null; }
   if (unsubPlanificacion) { try { unsubPlanificacion(); } catch (_) {} unsubPlanificacion = null; }
   if (unsubFormaciones) { try { unsubFormaciones(); } catch (_) {} unsubFormaciones = null; }
+  if (unsubComites) { try { unsubComites(); } catch (_) {} unsubComites = null; }
+  if (unsubConsejos) { try { unsubConsejos(); } catch (_) {} unsubConsejos = null; }
+  if (unsubNucleos) { try { unsubNucleos(); } catch (_) {} unsubNucleos = null; }
 }
 
 document.addEventListener('usuarioCerroSesion', limpiarSuscripcionesDashboard);
