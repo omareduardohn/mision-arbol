@@ -467,6 +467,94 @@
           </div>
         </div>
 
+        <!-- ==================== PANEL: COMITÉS ECOSOCIALISTAS ==================== -->
+        <div id="panel-comites" class="panel" style="display:none;">
+          <div class="panel-header">
+            <h2><i class="fas fa-building"></i> Gestión de Comités Ecosocialistas</h2>
+          </div>
+
+          <div id="comitesWarning"></div>
+
+          <form id="formComite" style="display:none;">
+            <div class="subpanel">
+              <h3>🏛️ Datos del Comité</h3>
+              <div class="form-group">
+                <label>Nombre del comité *</label>
+                <input type="text" id="cmt_nombre" placeholder="Ej: Comité Ecosocialista Los Samanes" required>
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <h3>📍 Ubicación</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estado *</label>
+                  <select id="cmt_estado" required></select>
+                </div>
+                <div class="form-group">
+                  <label>Municipio *</label>
+                  <select id="cmt_municipio" disabled required></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Parroquia *</label>
+                  <select id="cmt_parroquia" disabled required></select>
+                </div>
+                <div class="form-group">
+                  <label>Comuna / Circuito *</label>
+                  <select id="cmt_comuna" disabled required></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Consejo Comunal *</label>
+                <select id="cmt_consejo" disabled required></select>
+              </div>
+            </div>
+
+            <div class="subpanel">
+              <h3>👤 Responsable y estado</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Responsable principal</label>
+                  <input type="text" id="cmt_responsable" placeholder="Nombre y apellido">
+                </div>
+                <div class="form-group">
+                  <label>Teléfono del responsable</label>
+                  <input type="tel" id="cmt_telefono" placeholder="0412-1234567">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Estatus *</label>
+                  <select id="cmt_estatus" required>
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Observaciones</label>
+                  <input type="text" id="cmt_observaciones" placeholder="Opcional">
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button type="button" class="btn btn-secondary" id="btnCancelarComite">Cancelar</button>
+              <button type="submit" class="btn btn-success" id="btnGuardarComite">💾 Guardar comité</button>
+            </div>
+          </form>
+
+          <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
+            <button class="btn btn-primary" id="btnNuevaComite" style="display:none;">+ Nuevo comité</button>
+          </div>
+
+          <div class="subpanel">
+            <h3>📋 Comités registrados</h3>
+            <div id="listaComites"></div>
+          </div>
+        </div>
+
         <!-- ==================== PANEL: BANCOS DE TIERRA ==================== -->
         <div id="panel-bancos-tierra" class="panel" style="display:none;">
           <div class="panel-header">

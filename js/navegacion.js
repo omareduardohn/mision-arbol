@@ -23,6 +23,7 @@ const MENUS = {
     { panel: 'panel-viveros',            icono: 'fas fa-warehouse',        texto: 'Viveros' },
     { panel: 'panel-bancos-tierra',      icono: 'fas fa-mountain',         texto: 'Bancos de Tierra' },
     { panel: 'panel-brigadas',           icono: 'fas fa-users',            texto: 'Brigadas' },
+    { panel: 'panel-comites',            icono: 'fas fa-building',         texto: 'Comités' },
     { panel: 'panel-formaciones',        icono: 'fas fa-graduation-cap',   texto: 'Formaciones' },
     { panel: 'panel-dashboard-nacional', icono: 'fas fa-chart-line',       texto: 'Dashboard Nacional' }
   ],
@@ -52,10 +53,13 @@ const MENUS = {
  * Solo se inyecta en el menú de reporte_nacional.
  */
 const MODULOS_POR_GERENCIA = {
-  'Producción':   { panel: 'panel-viveros',        icono: 'fas fa-warehouse',      texto: 'Viveros' },
-  'Plantación':   { panel: 'panel-bancos-tierra',  icono: 'fas fa-mountain',       texto: 'Bancos de Tierra' },
-  'Organización': { panel: 'panel-brigadas',       icono: 'fas fa-users',          texto: 'Brigadas' },
-  'Formación':    { panel: 'panel-formaciones',    icono: 'fas fa-graduation-cap', texto: 'Formaciones' }
+  'Producción':   [{ panel: 'panel-viveros',        icono: 'fas fa-warehouse',      texto: 'Viveros' }],
+  'Plantación':   [{ panel: 'panel-bancos-tierra',  icono: 'fas fa-mountain',       texto: 'Bancos de Tierra' }],
+  'Organización': [
+    { panel: 'panel-brigadas', icono: 'fas fa-users',    texto: 'Brigadas' },
+    { panel: 'panel-comites',  icono: 'fas fa-building', texto: 'Comités' }
+  ],
+  'Formación':    [{ panel: 'panel-formaciones',    icono: 'fas fa-graduation-cap', texto: 'Formaciones' }]
 };
 
 const TITULOS = {
@@ -69,7 +73,8 @@ const TITULOS = {
   'panel-formaciones':        'Núcleo de Formación',
   'panel-viveros':            'Gestión de Viveros',
   'panel-bancos-tierra':      'Gestión de Bancos de Tierra',
-  'panel-brigadas':           'Gestión de Brigadas'
+  'panel-brigadas':           'Gestión de Brigadas',
+  'panel-comites':            'Gestión de Comités Ecosocialistas'
 };
 
 /**
@@ -118,11 +123,11 @@ export function construirMenu(rol, perfil) {
   // Copiamos el menú base del rol para no mutar la constante global
   const opciones = [...(MENUS[rol] || [])];
 
-  // Inyectar módulo por gerencia — SOLO para reporte_nacional.
+  // Inyectar módulos por gerencia — SOLO para reporte_nacional.
   if (rol === 'reporte_nacional') {
-    const modulo = MODULOS_POR_GERENCIA[perfil?.gerencia];
-    if (modulo) {
-      opciones.splice(1, 0, modulo);
+    const modulos = MODULOS_POR_GERENCIA[perfil?.gerencia];
+    if (Array.isArray(modulos) && modulos.length) {
+      opciones.splice(1, 0, ...modulos);
     }
   }
 
@@ -270,6 +275,11 @@ async function cargarContenidoPanel(panelId) {
     case 'panel-brigadas': {
       const { cargarPanelBrigadas } = await import('./brigadas.js');
       cargarPanelBrigadas();
+      break;
+    }
+    case 'panel-comites': {
+      const { cargarPanelComites } = await import('./comites.js');
+      cargarPanelComites();
       break;
     }
     case 'panel-personal': {
