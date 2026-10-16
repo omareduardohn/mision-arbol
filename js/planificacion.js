@@ -13,7 +13,7 @@
 // 'usuarioCerroSesion' (disparado por auth.js::logout).
 
 import {
-  collection, addDoc, getDoc, doc, query, where,
+  collection, addDoc, getDoc, getDocs, doc, query, where,
   serverTimestamp, onSnapshot, deleteDoc, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -311,7 +311,7 @@ function agregarActividadRow() {
     <div class="form-row">
       <div class="form-group">
         <label>Responsable principal</label>
-        <input type="text" class="act-responsable" placeholder="Nombre y apellido">
+        <select class="act-responsable"><option value="">Cargando personal...</option></select>
       </div>
       <div class="form-group">
         <label>Teléfono del responsable</label>
@@ -375,6 +375,46 @@ function agregarActividadRow() {
       tipos.map(t => `<option value="${escapeHTML(t)}">${escapeHTML(t)}</option>`).join('');
     selTipo.disabled = false;
   });
+
+  // Responsable: dropdown precargado desde /personal
+  poblarResponsable(row);
+}
+
+/* Precarga el responsable de una fila de actividad desde /personal. */
+async function poblarResponsable(row) {
+  const sel = row.querySelector('.act-responsable');
+  const tel = row.querySelector('.act-telefono');
+  if (!sel) return;
+  const perfil = window.__perfil;
+  try {
+    let q = collection(db, 'personal');
+    if (perfil?.estado) q = query(q, where('estado', '==', perfil.estado));
+    else if (perfil?.gerencia) q = query(q, where('gerencia', '==', perfil.gerencia));
+    const snap = await getDocs(q);
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.nombreCompleto || '').localeCompare(b.nombreCompleto || ''));
+
+    if (docs.length === 0) {
+      sel.innerHTML = '<option value="">No hay personal en "Mi Personal"</option>';
+      return;
+    }
+
+    sel.innerHTML = '<option value="">Seleccione...</option>' +
+      docs.map((d) => {
+        const nom = d.nombreCompleto || d.nombre || '—';
+        return `<option value="${escapeHTML(d.id)}" data-nombre="${escapeHTML(nom)}">${escapeHTML(nom)}${d.cargo ? ' — ' + escapeHTML(d.cargo) : ''}</option>`;
+      }).join('');
+
+    sel.addEventListener('change', () => {
+      const opt = sel.options[sel.selectedIndex];
+      sel.dataset.nombre = opt?.dataset.nombre || '';
+      const pers = docs.find((d) => d.id === sel.value);
+      if (pers?.telefono && tel) tel.value = pers.telefono;
+    });
+  } catch (e) {
+    console.warn('[Planificación] No se pudo cargar personal:', e);
+    sel.innerHTML = '<option value="">No disponible</option>';
+  }
 }
 
 /* ==================== WIRING FORMULARIO ==================== */
@@ -465,7 +505,8 @@ async function guardarPlanificacion() {
       lugar: row.querySelector('.act-lugar')?.value.trim() || '',
       descripcion: row.querySelector('.act-descripcion')?.value.trim() || '',
       objetivo: row.querySelector('.act-objetivo')?.value.trim() || '',
-      responsable: row.querySelector('.act-responsable')?.value.trim() || '',
+      responsable: row.querySelector('.act-responsable')?.dataset.nombre || '',
+      responsablePersonalId: row.querySelector('.act-responsable')?.value || '',
       telefono: row.querySelector('.act-telefono')?.value.trim() || '',
       estatus: row.querySelector('.act-estatus')?.value || '',
       autoridades: row.querySelector('.act-autoridades')?.value.trim() || '',
