@@ -26,6 +26,7 @@ import {
 } from "./datos.js";
 
 import { marcarActividadComoEjecutada } from "./planificacion.js";
+import { esquemaDe, tiposActividadDe, CAMPOS_COMUNES } from "./esquemasActividades.js";
 
 /* ==================== ESTADO GLOBAL ==================== */
 let pasoActual = 1;
@@ -270,7 +271,7 @@ function validarPaso(paso) {
     }
   }
 
-    if (paso === 3) {
+  if (paso === 3) {
     const ind = formData.indicador;
     const data = formData.condicional[ind] || {};
 
@@ -279,112 +280,23 @@ function validarPaso(paso) {
       return false;
     }
 
-    // Validaciones específicas por gerencia
-    if (ind === 'organizacion') {
-      const esBrigada = data.tipoActividad === 'Conformación de Brigada Ecológica'
-                     || data.tipoActividad === 'Juramentación de Brigada';
-      if (esBrigada) {
-        if (!data.tipoBrigada)          { toast('Selecciona el tipo de brigada'); return false; }
-        if (!data.cantidadBrigadas)     { toast('Ingresa la cantidad de brigadas'); return false; }
-        if (!data.miembrosBrigada)      { toast('Ingresa los miembros por brigada'); return false; }
-        if (!data.clasificacionBrigada) { toast('Selecciona la clasificación por edades'); return false; }
-      }
+    // Validación genérica según el esquema declarativo.
+    const esquema = esquemaDe(ind, data.tipoActividad);
+    if (!esquema) {
+      toast('Tipo de actividad no reconocido');
+      return false;
     }
 
-    if (ind === 'produccion') {
-      if (!data.tipoEspacio) { toast('Selecciona el tipo de espacio productivo'); return false; }
-
-      const esRecoleccion = data.tipoActividad === 'Recolección de Semillas'
-                         || data.tipoActividad === 'Recolección de Brinzales'
-                         || data.tipoActividad === 'Germinación de Semillas'
-                         || data.tipoActividad === 'Corte de Esquejes'
-                         || data.tipoActividad === 'Entrega de Semillas a Instituciones / Comunidades';
-      if (esRecoleccion) {
-        if (!data.tipoArea)   { toast('Selecciona el tipo de área productiva'); return false; }
-        if (!data.tipoPlanta) { toast('Selecciona el tipo de planta empleada'); return false; }
-      }
-
-      const esLlenado = data.tipoActividad === 'Llenado de Bolsas'
-                     || data.tipoActividad === 'Preparación de Canteros'
-                     || data.tipoActividad === 'Creación y/o Monitoreo de Espacios Productivos';
-      if (esLlenado && !data.canterosLlenados && !data.bolsasLlenadas) {
-        toast('Ingresa la cantidad de canteros o bolsas llenadas');
+    for (const campo of (esquema.campos || [])) {
+      if (!campo.requerido) continue;
+      if (!campoVisible(campo, data)) continue; // no validar campos ocultos
+      const val = data[campo.id];
+      const vacio = val === undefined || val === null || val === '' ||
+        (Array.isArray(val) && val.length === 0);
+      if (vacio) {
+        toast('Completa el campo: ' + (campo.label || campo.id));
         return false;
       }
-
-      if (data.tipoActividad === 'Identificación de Espacios de Bancos de Germoplasma') {
-        if (!data.nombreBanco) { toast('Ingresa el nombre del banco de germoplasma'); return false; }
-      }
-
-      if (data.tipoActividad === 'Hagamos del Plástico un Árbol' && !data.bolsasPlasticas) {
-        toast('Ingresa la cantidad de bolsas plásticas recolectadas');
-        return false;
-      }
-
-      if (data.tipoActividad === 'Producción de Sustrato / Abono / Biofertilizante') {
-        if (!data.sustratoPreparado && !data.acarreoSustrato) {
-          toast('Ingresa la cantidad de sustrato preparado o acarreado');
-          return false;
-        }
-      }
-    }
-
-    if (ind === 'formacion') {
-      if (!data.tipoDinamica)         { toast('Selecciona el tipo de dinámica'); return false; }
-      if (!data.tema?.trim())         { toast('Ingresa el tema formativo abordado'); return false; }
-      if (!data.personasSensibilizadas) { toast('Ingresa la cantidad de personas sensibilizadas'); return false; }
-
-      const esTallerOCiclo = data.tipoDinamica === 'Taller Formativo'
-                          || data.tipoDinamica === 'Conversatorio'
-                          || data.tipoDinamica === 'Cineforo Ambiental'
-                          || data.tipoDinamica === 'Charla Educativa'
-                          || data.tipoDinamica === 'Seminario';
-      if (esTallerOCiclo) {
-        if (!data.modalidad) { toast('Selecciona la modalidad'); return false; }
-      }
-
-      const esConBrigada = data.tipoDinamica === 'Taller Formativo'
-                        || data.tipoDinamica === 'Conversatorio'
-                        || data.tipoDinamica === 'Seminario';
-      if (esConBrigada && !data.brigadaEcologica) {
-        toast('Selecciona la brigada ecológica que participó (o "Ninguna")');
-        return false;
-      }
-
-      if (data.seConformoBrigada === 'Sí') {
-        if (!data.nombreBrigada?.trim())   { toast('Ingresa el nombre de la brigada conformada'); return false; }
-        if (!data.miembrosBrigada)         { toast('Ingresa la cantidad de miembros'); return false; }
-        if (!data.clasificacionBrigada)    { toast('Selecciona la clasificación por edades'); return false; }
-      }
-    }
-
-    if (ind === 'plantacion') {
-      const esPlantacion = data.tipoActividad?.startsWith('Jornada de Reforestación')
-                        || data.tipoActividad === 'Plantación Ornamental / Paisajismo'
-                        || data.tipoActividad === 'Reforestación Conmemorativa'
-                        || data.tipoActividad === 'Jornada de Reforestación Preventiva (Ríos / Quebradas)'
-                        || data.tipoActividad === 'Jornada de Conservación de Manglar';
-
-      if (esPlantacion) {
-        if (!data.tipoPlanta) { toast('Selecciona el tipo de planta empleada'); return false; }
-        if (!data.porte)      { toast('Selecciona el porte de las plantas'); return false; }
-        if (!data.tipoZona)   { toast('Selecciona el tipo de zona atendida'); return false; }
-        if (!data.tipoArea)   { toast('Selecciona el tipo de área (nueva o reposición)'); return false; }
-        if (!data.caracteristicasSuelo) { toast('Selecciona las características del suelo'); return false; }
-        if (!data.afectacionBanco)      { toast('Selecciona la afectación del banco de tierra'); return false; }
-      }
-
-      if (data.tipoActividad === 'Atención a Árboles (Mantenimiento Fitosanitario)') {
-        if (!data.arbolesRecuperados) { toast('Ingresa la cantidad de árboles recuperados'); return false; }
-      }
-    }
-
-    if (ind === 'politicas') {
-      if (!data.tipoActividad?.trim())  { toast('Ingresa el tipo de actividad política'); return false; }
-      if (!data.organizaciones?.length) { toast('Selecciona al menos una organización participante'); return false; }
-      if (!data.cantidadAsistentes)     { toast('Ingresa la cantidad de asistentes'); return false; }
-      if (!data.descripcion?.trim())    { toast('Ingresa la descripción de la actividad'); return false; }
-      if (!data.objetivo?.trim())       { toast('Ingresa el objetivo o finalidad'); return false; }
     }
   }
 
@@ -897,15 +809,369 @@ function renderPaso3(body) {
   wireBannerVinculacion();
 
   const inner = document.getElementById('paso3-content');
-  switch (formData.indicador) {
-    case 'organizacion': renderPaso3Organizacion(inner); break;
-    case 'produccion':   renderPaso3Produccion(inner);   break;
-    case 'formacion':    renderPaso3Formacion(inner);    break;
-    case 'plantacion':   renderPaso3Plantacion(inner);   break;
-    case 'politicas':    renderPaso3Politicas(inner);    break;
-    default:
-      inner.innerHTML = '<p style="padding:30px;text-align:center;">Indicador no reconocido.</p>';
+  renderPaso3Generico(inner);
+}
+
+/* ==================== PASO 3 — RENDERIZADOR GENÉRICO (esquema declarativo) ==================== */
+
+function renderPaso3Generico(body) {
+  const ind = formData.indicador;
+  const data = formData.condicional[ind] || {};
+  const tipos = tiposActividadDe(ind);
+
+  body.innerHTML = `
+    <div class="subpanel">
+      <h3>📋 Actividad</h3>
+      <div class="form-group">
+        <label>Tipo de actividad *</label>
+        ${htmlSelect('gen-tipoActividad', tipos, data.tipoActividad || '')}
+      </div>
+    </div>
+    <div id="gen-campos"></div>
+  `;
+
+  document.getElementById('gen-tipoActividad')?.addEventListener('change', (e) => {
+    limpiarCamposCondicional(data, e.target.value);
+    renderizarPaso();
+  });
+
+  if (!data.tipoActividad) return;
+
+  const esquema = esquemaDe(ind, data.tipoActividad);
+  const cont = document.getElementById('gen-campos');
+  if (!esquema) {
+    cont.innerHTML = '<p style="padding:20px;color:#888;text-align:center;">Actividad sin esquema definido.</p>';
+    return;
   }
+
+  (esquema.campos || []).forEach((campo) => {
+    if (!campoVisible(campo, data)) return;
+    renderCampoGenerico(cont, campo, data);
+  });
+
+  renderAcompanamiento(cont, data);
+}
+
+function limpiarCamposCondicional(data, tipo) {
+  Object.keys(data).forEach((k) => { if (k !== 'tipoActividad') delete data[k]; });
+  data.tipoActividad = tipo;
+}
+
+function campoVisible(campo, data) {
+  if (!campo.visibleSi) return true;
+  // Evaluador seguro (sin eval/Function, compatible con la CSP estricta).
+  // Soporta comparaciones simples:  campoId === 'valor'  (o ==).
+  const m = String(campo.visibleSi).trim().match(/^(\w+)\s*===?\s*['"]([^'"]*)['"]$/);
+  if (m) return data[m[1]] === m[2];
+  console.warn('[esquema] visibleSi no soportado (se muestra):', campo.visibleSi);
+  return true;
+}
+
+function renderCampoGenerico(cont, campo, data) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'form-group';
+  const id = 'gen-' + campo.id;
+  const req = campo.requerido ? ' *' : '';
+  const hint = (campo.hint && campo.tipo !== 'text')
+    ? `<small style="display:block;color:#888;font-size:12px;margin-top:2px;">${escapeHTML(campo.hint)}</small>`
+    : '';
+  let inputHTML = '';
+
+  switch (campo.tipo) {
+    case 'text':
+      inputHTML = `<input type="text" id="${id}" value="${escapeHTML(data[campo.id] || '')}" placeholder="${escapeHTML(campo.hint || '')}">`;
+      break;
+    case 'textarea':
+      inputHTML = `<textarea id="${id}" rows="3">${escapeHTML(data[campo.id] || '')}</textarea>`;
+      break;
+    case 'number':
+      inputHTML = `<input type="number" id="${id}" min="0" value="${Number(data[campo.id]) || 0}">`;
+      break;
+    case 'date':
+      inputHTML = `<input type="date" id="${id}" value="${escapeHTML(data[campo.id] || '')}">`;
+      break;
+    case 'select':
+      inputHTML = htmlSelect(id, campo.opciones || [], data[campo.id] || '');
+      break;
+    case 'radio':
+      inputHTML = htmlRadioGroup(id, campo.opciones || [], data[campo.id] || '');
+      break;
+    case 'checkbox':
+      inputHTML = htmlCheckboxGroup(id, campo.opciones || [], data[campo.id] || []);
+      break;
+    case 'otro': {
+      const opciones = campo.opciones || [];
+      const val = data[campo.id] || '';
+      inputHTML = htmlSelect(id, opciones, val);
+      if (opciones.includes('Otro')) {
+        const show = val === 'Otro';
+        inputHTML += `<input type="text" id="${id}-otro" placeholder="Especificar..." value="${escapeHTML(data[campo.id + 'Otro'] || '')}" style="margin-top:6px;${show ? '' : 'display:none;'}">`;
+      }
+      break;
+    }
+    case 'coordenadas':
+      inputHTML = `
+        <div class="form-row">
+          <div class="form-group"><label>Latitud</label><input type="text" id="${id}-lat" placeholder="Ej: 8.5" value="${escapeHTML(data.latitud || '')}"></div>
+          <div class="form-group"><label>Longitud</label><input type="text" id="${id}-lng" placeholder="Ej: -66.9" value="${escapeHTML(data.longitud || '')}"></div>
+        </div>`;
+      break;
+    case 'personal':
+    case 'brigada':
+    case 'comite':
+    case 'consejo':
+    case 'vivero':
+      inputHTML = `<select id="${id}"><option value="">Cargando...</option></select>`;
+      break;
+    case 'especies_multi':
+      inputHTML = `<div id="${id}"></div>`;
+      break;
+    default:
+      inputHTML = `<input type="text" id="${id}" value="${escapeHTML(data[campo.id] || '')}">`;
+  }
+
+  wrapper.innerHTML = `<label>${escapeHTML(campo.label)}${req}</label>${hint}${inputHTML}`;
+  cont.appendChild(wrapper);
+
+  wireCampoGenerico(id, campo, data);
+}
+
+function wireCampoGenerico(id, campo, data) {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  switch (campo.tipo) {
+    case 'text':
+    case 'textarea':
+      el.addEventListener('input', (e) => { data[campo.id] = e.target.value; });
+      break;
+    case 'number':
+      el.addEventListener('input', (e) => { data[campo.id] = parseInt(e.target.value, 10) || 0; });
+      break;
+    case 'date':
+      el.addEventListener('change', (e) => { data[campo.id] = e.target.value; });
+      break;
+    case 'select':
+      el.addEventListener('change', (e) => { data[campo.id] = e.target.value; renderizarPaso(); });
+      break;
+    case 'otro': {
+      el.addEventListener('change', (e) => { data[campo.id] = e.target.value; renderizarPaso(); });
+      document.getElementById(id + '-otro')?.addEventListener('input', (e) => { data[campo.id + 'Otro'] = e.target.value; });
+      break;
+    }
+    case 'radio':
+      wireRadioGroup(id, (val) => { data[campo.id] = val; renderizarPaso(); });
+      break;
+    case 'checkbox':
+      wireCheckboxGroup(id, (vals) => { data[campo.id] = vals; });
+      break;
+    case 'coordenadas': {
+      document.getElementById(id + '-lat')?.addEventListener('input', (e) => { data.latitud = e.target.value; });
+      document.getElementById(id + '-lng')?.addEventListener('input', (e) => { data.longitud = e.target.value; });
+      break;
+    }
+    case 'personal':
+      cargarOpcionesColeccion('personal', id, data, campo);
+      break;
+    case 'brigada':
+      cargarOpcionesColeccion('brigadas', id, data, campo);
+      break;
+    case 'comite':
+      cargarOpcionesColeccion('comitesEcosocialistas', id, data, campo);
+      break;
+    case 'consejo':
+      cargarOpcionesColeccion('consejosEcosocialistas', id, data, campo);
+      break;
+    case 'vivero':
+      cargarOpcionesColeccion('viveros', id, data, campo);
+      break;
+    case 'especies_multi':
+      renderEspeciesWidgetGenerico(id, data, campo);
+      break;
+  }
+}
+
+async function cargarOpcionesColeccion(coleccion, id, data, campo) {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  const labelDe = {
+    personal: (d) => d.nombreCompleto || d.nombre || '—',
+    brigadas: (d) => (d.nombre || '—') + (d.codigoUnico ? ' (' + d.codigoUnico + ')' : ''),
+    comitesEcosocialistas: (d) => d.nombre || '—',
+    consejosEcosocialistas: (d) => d.nombre || '—',
+    viveros: (d) => d.nombre || '—'
+  };
+
+  try {
+    let q = collection(db, coleccion);
+    const perfil = window.__perfil;
+    if (coleccion === 'personal' && perfil) {
+      if (perfil.estado) q = query(q, where('estado', '==', perfil.estado));
+      else if (perfil.gerencia) q = query(q, where('gerencia', '==', perfil.gerencia));
+    }
+    const snap = await getDocs(q);
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (labelDe[coleccion](a)).localeCompare(labelDe[coleccion](b)));
+
+    const valorActual = data[campo.id] || '';
+    el.innerHTML = '<option value="">Seleccione...</option>' +
+      docs.map((d) => `<option value="${escapeHTML(d.id)}" ${d.id === valorActual ? 'selected' : ''}>${escapeHTML(labelDe[coleccion](d))}</option>`).join('');
+
+    if (docs.length === 0) el.innerHTML = '<option value="">Sin registros</option>';
+
+    el.addEventListener('change', (e) => {
+      data[campo.id] = e.target.value;
+      const doc = docs.find((d) => d.id === e.target.value);
+      data[campo.id + 'Label'] = doc ? labelDe[coleccion](doc) : '';
+    });
+  } catch (e) {
+    console.warn('[esquema] No se pudo cargar ' + coleccion + ':', e);
+    el.innerHTML = '<option value="">No disponible</option>';
+  }
+}
+
+function renderEspeciesWidgetGenerico(containerId, data, campo) {
+  const cont = document.getElementById(containerId);
+  if (!cont) return;
+
+  const cats = ['Forestales', 'Frutales', 'Ornamentales', 'Medicinales'];
+  const almacen = (data[campo.id] && typeof data[campo.id] === 'object') ? data[campo.id] : {};
+  const unidad = data[campo.id + 'Unidad'] || campo.unidad || 'unidades';
+  const unidades = ['unidades', 'kilogramos', 'gramos'];
+
+  const total = () => Object.values(almacen).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+
+  const filasHTML = () => {
+    const f = Object.entries(almacen).map(([esp, cant]) => `
+      <div style="display:grid;grid-template-columns:1fr 90px 70px 36px;gap:8px;align-items:center;margin-bottom:6px;">
+        <span style="font-size:13px;">${escapeHTML(esp)}</span>
+        <input type="number" min="0" class="ge-cantidad" data-esp="${escapeHTML(esp)}" value="${Number(cant) || 0}">
+        <span style="font-size:11px;color:#666;">${escapeHTML(unidad)}</span>
+        <button type="button" class="btn btn-danger btn-sm ge-quitar" data-esp="${escapeHTML(esp)}">✕</button>
+      </div>`).join('');
+    return f || '<p style="font-size:12px;color:#999;text-align:center;padding:10px;">Sin especies agregadas.</p>';
+  };
+
+  cont.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;">
+      <div class="form-group" style="flex:1;"><label style="font-size:12px;color:#666;">Unidad</label>
+        <select id="${containerId}-unidad">${unidades.map((u) => `<option value="${u}" ${u === unidad ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
+      <div class="form-group" style="flex:1;"><label style="font-size:12px;color:#666;">Categoría</label>
+        <select id="${containerId}-cat">${cats.map((c) => `<option value="${c}">${c}</option>`).join('')}</select></div>
+      <div class="form-group" style="flex:1.5;"><label style="font-size:12px;color:#666;">Especie</label>
+        <select id="${containerId}-esp"><option value="">Seleccione...</option></select></div>
+      <button type="button" class="btn btn-primary ge-agregar" style="margin-bottom:2px;">+</button>
+    </div>
+    <div id="${containerId}-lista">${filasHTML()}</div>
+    <div style="margin-top:10px;padding:8px 12px;background:#e8f5e9;border-radius:8px;font-size:13px;color:var(--verde-oscuro);font-weight:600;" id="${containerId}-total">Total: ${total()} ${escapeHTML(unidad)}</div>
+  `;
+
+  const poblarEspecies = () => {
+    const cat = document.getElementById(containerId + '-cat').value;
+    const sel = document.getElementById(containerId + '-esp');
+    sel.innerHTML = '<option value="">Seleccione...</option>' +
+      (CATALOGO_PLANTAS[cat] || []).slice().sort().map((e) => `<option value="${escapeHTML(e)}">${escapeHTML(e)}</option>`).join('');
+  };
+  poblarEspecies();
+
+  const actualizarTotal = () => {
+    document.getElementById(containerId + '-total').textContent = `Total: ${total()} ${unidad}`;
+    data[campo.id] = almacen;
+  };
+
+  const refrescarLista = () => {
+    document.getElementById(containerId + '-lista').innerHTML = filasHTML();
+    actualizarTotal();
+    cont.querySelectorAll('.ge-cantidad').forEach((inp) => {
+      inp.addEventListener('input', (e) => {
+        almacen[e.target.dataset.esp] = parseInt(e.target.value, 10) || 0;
+        actualizarTotal(); // NO re-renderiza: mantiene el foco mientras escribe
+      });
+    });
+    cont.querySelectorAll('.ge-quitar').forEach((btn) => {
+      btn.addEventListener('click', () => { delete almacen[btn.dataset.esp]; refrescarLista(); });
+    });
+  };
+  refrescarLista();
+
+  document.getElementById(containerId + '-unidad').addEventListener('change', (e) => {
+    data[campo.id + 'Unidad'] = e.target.value;
+    renderEspeciesWidgetGenerico(containerId, data, campo);
+  });
+  document.getElementById(containerId + '-cat').addEventListener('change', poblarEspecies);
+  document.getElementById(containerId + '-esp').addEventListener('change', (e) => {
+    const esp = e.target.value;
+    if (!esp) return;
+    if (almacen[esp] === undefined) almacen[esp] = 0;
+    e.target.value = '';
+    refrescarLista();
+  });
+}
+
+function renderAcompanamiento(cont, data) {
+  const sub = document.createElement('div');
+  sub.className = 'subpanel';
+  sub.innerHTML = '<h3>📢 Acompañamiento y Movilización</h3>';
+  cont.appendChild(sub);
+
+  if (!data.acompanamiento || typeof data.acompanamiento !== 'object') data.acompanamiento = {};
+  data.acompanamiento.entes = data.acompanamiento.entes || {};
+  data.acompanamiento.ministerios = data.acompanamiento.ministerios || {};
+  if (data.acompanamiento.misionArbolMovilizado === undefined) data.acompanamiento.misionArbolMovilizado = 0;
+
+  const entes = ENTES_ADSCRITOS.filter((e) => e !== 'Ninguno' && e !== 'Otro');
+  const ministerios = MINISTERIOS.filter((m) => m !== 'Ninguno' && m !== 'Otro');
+
+  const listaConCantidad = (titulo, opciones, clave) => {
+    const filas = opciones.map((op) => `
+      <div style="display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;margin-bottom:4px;">
+        <label style="font-size:13px;font-weight:500;">${escapeHTML(op)}</label>
+        <input type="number" min="0" class="acc-cantidad" data-clave="${clave}" data-op="${escapeHTML(op)}" value="${Number(data.acompanamiento[clave][op]) || 0}" placeholder="0">
+      </div>`).join('');
+    sub.insertAdjacentHTML('beforeend', `
+      <div class="form-group" style="margin-top:8px;">
+        <label style="font-weight:600;">${escapeHTML(titulo)}</label>
+        ${filas}
+      </div>`);
+  };
+
+  listaConCantidad('Entes adscritos / UTEC (participantes)', entes, 'entes');
+  listaConCantidad('Ministerios / Sistema de Misiones (participantes)', ministerios, 'ministerios');
+
+  const totalFuerzas = () => {
+    const sum = (obj) => Object.values(obj || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0);
+    return sum(data.acompanamiento.entes) + sum(data.acompanamiento.ministerios);
+  };
+
+  sub.insertAdjacentHTML('beforeend', `
+    <div class="form-row" style="margin-top:10px;">
+      <div class="form-group">
+        <label>Disgregación de fuerzas movilizadas (total)</label>
+        <input type="number" id="gen-acc-total" value="${totalFuerzas()}" readonly style="background:#f1f8e9;font-weight:700;">
+      </div>
+      <div class="form-group">
+        <label>Personal Misión Árbol movilizado</label>
+        <input type="number" id="gen-acc-ma" min="0" value="${Number(data.acompanamiento.misionArbolMovilizado) || 0}">
+      </div>
+    </div>
+  `);
+
+  const actualizarTotal = () => {
+    const t = document.getElementById('gen-acc-total');
+    if (t) t.value = totalFuerzas();
+  };
+
+  sub.querySelectorAll('.acc-cantidad').forEach((inp) => {
+    inp.addEventListener('input', (e) => {
+      data.acompanamiento[e.target.dataset.clave][e.target.dataset.op] = parseInt(e.target.value, 10) || 0;
+      actualizarTotal();
+    });
+  });
+
+  document.getElementById('gen-acc-ma')?.addEventListener('input', (e) => {
+    data.acompanamiento.misionArbolMovilizado = parseInt(e.target.value, 10) || 0;
+  });
 }
 
 /* ==================== VINCULACIÓN PLAN ↔ CUMPLIMIENTO ==================== */
@@ -2483,16 +2749,16 @@ function construirDocumentoReporte(perfil) {
     descripcionActividad = condicionalData.descripcion || '';
     objetivoActividad    = condicionalData.objetivo || '';
   } else {
-    // Para los demás indicadores usamos los campos de temas o descripciones disponibles
-    descripcionActividad = condicionalData.tema
+    // Para los demás indicadores usamos los campos de descripción/tema disponibles
+    descripcionActividad = condicionalData.descripcion
+                        || condicionalData.tema
                         || condicionalData.tipoActividad
                         || '';
-    objetivoActividad = '';
+    objetivoActividad = condicionalData.objetivo || '';
   }
 
   // Tipo de actividad (nombre legible) según el indicador
   let tipoActividadLabel = condicionalData.tipoActividad || '';
-  if (ind === 'formacion') tipoActividadLabel = condicionalData.tipoDinamica || '';
   if (ind === 'politicas') tipoActividadLabel = condicionalData.tipoActividad || 'Actividad política';
 
   return {
