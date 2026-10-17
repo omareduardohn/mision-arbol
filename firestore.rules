@@ -12,7 +12,6 @@ service cloud.firestore {
     function rol() {
       return isAuth() ? userDoc().rol : '';
     }
-    // F01: Cuenta activa (aprobada y no suspendida)
     function cuentaActiva() {
       return isAuth()
         && userDoc().estadoCuenta == 'aprobado'
@@ -29,7 +28,6 @@ service cloud.firestore {
 
     /* ========== USUARIOS ========== */
     match /usuarios/{uid} {
-      // Control puede leer incluso cuentas pendientes (para poder aprobarlas)
       allow get: if isAuth() && (
         request.auth.uid == uid
         || (rol() == 'control')
@@ -43,18 +41,22 @@ service cloud.firestore {
                        ]
                     && request.resource.data.estadoCuenta == 'pendiente';
 
+      // P2: rama B ya no permite des-suspensión por parte del usuario
       allow update: if
         (isAuth() && rol() == 'control')
         ||
         (
           isAuth() && request.auth.uid == uid
           && (
+            // Rama A: solo campos no sensibles
             !request.resource.data.diff(resource.data)
                  .affectedKeys()
                  .hasAny(['rol','estadoCuenta','estado','gerencia','suspendido','cedula','email','intentosFallidos','ultimoIntentoFallido'])
             ||
+            // Rama B: reset de intentos SOLO si no estaba suspendido
             (
-              request.resource.data.diff(resource.data)
+              resource.data.suspendido != true
+              && request.resource.data.diff(resource.data)
                 .affectedKeys().hasOnly(['intentosFallidos','ultimoIntentoFallido','suspendido'])
               && request.resource.data.intentosFallidos == 0
               && request.resource.data.suspendido == false
@@ -65,8 +67,8 @@ service cloud.firestore {
     }
 
     /* ========== CÉDULAS ========== */
+    // P1: get requiere auth (el registro ahora verifica la cédula DESPUÉS de auth).
     match /cedulas/{hashId} {
-      // F02: get ahora requiere autenticación (el flujo de registro la usa ya autenticado)
       allow get: if isAuth();
       allow list: if isAuth() && esControl();
       allow create: if isAuth()
@@ -102,7 +104,6 @@ service cloud.firestore {
         (esReporteNacional() && request.resource.data.gerencia == miGerencia())
       );
 
-      // F04: hasOnly() en update (el propietario NO puede reescribir usuarioId, gerencia, ubicacion raíz)
       allow update: if isAuth() && (
         esControl()
         ||
@@ -124,18 +125,14 @@ service cloud.firestore {
 
     /* ========== EMAILS LOOKUP ========== */
     match /emails-lookup/{hashEmail} {
-      // Se mantiene get público: el flujo de login lo lee ANTES de autenticar
-      // para bloquear por intentos fallidos. Documentado como riesgo aceptado (F02).
       allow get: if true;
       allow list: if false;
-
       allow create: if isAuth()
                     && request.resource.data.uid is string
                     && (
                       request.resource.data.uid == request.auth.uid
                       || esControl()
                     );
-
       allow update: if false;
       allow delete: if isAuth() && esControl();
     }
@@ -163,7 +160,6 @@ service cloud.firestore {
     }
 
     /* ========== PERSONAL ========== */
-    // F03: dashboards solo pueden leer de su estado/gerencia
     match /personal/{id} {
       allow get: if isAuth() && (
         esControl() ||
@@ -189,7 +185,6 @@ service cloud.firestore {
         (esReporteNacional() && request.resource.data.gerencia == miGerencia())
       );
 
-      // F07: hasOnly en update
       allow update: if isAuth() && (
         esControl() ||
         (
@@ -206,7 +201,6 @@ service cloud.firestore {
     }
 
     /* ========== PLANIFICACIÓN ========== */
-    // F10: agregar acceso a dashboards
     match /planificacion/{id} {
       allow get: if isAuth() && (
         esControl() ||
@@ -234,7 +228,6 @@ service cloud.firestore {
         (esReporteNacional() && request.resource.data.gerenciaUsuario == miGerencia())
       );
 
-      // F07: hasOnly en update
       allow update: if isAuth() && (
         esControl() ||
         (
@@ -251,7 +244,6 @@ service cloud.firestore {
     }
 
     /* ========== REPORTES ESPECIALES ========== */
-    // F08: append-only en respuestas, validar que sea la propia respuesta del usuario
     match /reportesEspeciales/{id} {
       allow get: if isAuth() && cuentaActiva();
       allow list: if isAuth() && cuentaActiva();
@@ -265,6 +257,11 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['respuestas'])
           && request.resource.data.respuestas.size() == resource.data.respuestas.size() + 1
           && request.resource.data.respuestas[resource.data.respuestas.size()].usuarioId == request.auth.uid
+          // Defensa adicional: la primera respuesta (si existía) debe conservarse
+          && (
+            resource.data.respuestas.size() == 0
+            || request.resource.data.respuestas[0].usuarioId == resource.data.respuestas[0].usuarioId
+          )
         )
       );
     }
@@ -292,7 +289,6 @@ service cloud.firestore {
         (esReporteNacional() && miGerencia() == 'Producción')
       );
 
-      // F07: hasOnly en update
       allow update: if isAuth() && (
         esControl() ||
         (
@@ -333,7 +329,19 @@ service cloud.firestore {
         (esReporteNacional() && miGerencia() == 'Plantación')
       );
 
-      allow update, delete: if isAuth() && (
+      // P6: hasOnly en update
+      allow update: if isAuth() && (
+        esControl() ||
+        (
+          esReporteNacional() && miGerencia() == 'Plantación'
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['nombre','superficie','tipoSuelo','afectacion','ubicacion',
+                         'vegetacion','estatus','responsable','telefono',
+                         'observaciones','latitud','longitud','actualizado'])
+        )
+      );
+
+      allow delete: if isAuth() && (
         esControl() ||
         (esReporteNacional() && miGerencia() == 'Plantación')
       );
@@ -347,7 +355,6 @@ service cloud.firestore {
         (esReporteNacional() && miGerencia() == 'Organización') ||
         (esDashboardNacional() && miGerencia() == 'Organización') ||
         esDashboardEstadal() ||
-        // F12: Formación puede leer brigadas para vincular núcleos
         (esReporteNacional() && miGerencia() == 'Formación')
       );
 
@@ -365,10 +372,18 @@ service cloud.firestore {
         (esReporteNacional() && miGerencia() == 'Organización')
       ) && request.resource.data.tipo == 'ecologica';
 
+      // P6: hasOnly en update
       allow update: if isAuth() && (
         esControl() ||
-        (esReporteNacional() && miGerencia() == 'Organización')
-      ) && request.resource.data.tipo == 'ecologica';
+        (
+          esReporteNacional() && miGerencia() == 'Organización'
+          && request.resource.data.tipo == 'ecologica'
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['nombre','tipo','miembros','clasificacion','fechaConformacion',
+                         'ubicacion','estatus','responsable','telefono',
+                         'observaciones','actualizado'])
+        )
+      );
 
       allow delete: if isAuth() && (
         esControl() ||
@@ -377,7 +392,6 @@ service cloud.firestore {
     }
 
     /* ========== CONTADORES ========== */
-    // F09: límite superior + incremento de a 1
     match /contadores/{tipo} {
       allow get: if isAuth() && cuentaActiva();
 
@@ -398,11 +412,13 @@ service cloud.firestore {
     }
 
     /* ========== FORMACIONES ========== */
+    // P3: se agrega reporte_estadal con filtro por estado
     match /formaciones/{id} {
       allow get, list: if isAuth() && (
         esControl() ||
         esVisorNacional() ||
         esDashboardEstadal() ||
+        (esReporteEstadal() && resource.data.ubicacion.estado == miEstado()) ||
         ((esReporteNacional() || esDashboardNacional()) && miGerencia() == 'Formación')
       );
 
@@ -416,7 +432,6 @@ service cloud.firestore {
         && request.resource.data.titulo.size() > 0
         && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
 
-      // F07: hasOnly en update
       allow update: if isAuth() && (
         esControl() ||
         (esReporteNacional() && miGerencia() == 'Formación')
@@ -437,7 +452,6 @@ service cloud.firestore {
         esVisorNacional() ||
         esDashboardEstadal() ||
         ((esReporteNacional() || esDashboardNacional()) && miGerencia() == 'Organización') ||
-        // F12: Formación puede leer comités para vincular núcleos
         (esReporteNacional() && miGerencia() == 'Formación')
       );
 
@@ -494,11 +508,13 @@ service cloud.firestore {
     }
 
     /* ========== NÚCLEOS FORMATIVOS ========== */
+    // P3: se agrega reporte_estadal con filtro por estado
     match /nucleos/{id} {
       allow get, list: if isAuth() && (
         esControl() ||
         esVisorNacional() ||
         esDashboardEstadal() ||
+        (esReporteEstadal() && resource.data.territorio.estado == miEstado()) ||
         ((esReporteNacional() || esDashboardNacional()) && miGerencia() == 'Formación')
       );
 
@@ -517,7 +533,6 @@ service cloud.firestore {
              .hasOnly(['nombre','territorio','vinculadoA','estatus','responsable',
                        'telefono','observaciones','descripcion','actualizado']);
 
-      // F12: Formación también puede borrar sus propios núcleos (alineado con UI)
       allow delete: if isAuth() && (
         esControl() ||
         (esReporteNacional() && miGerencia() == 'Formación')
@@ -549,7 +564,8 @@ service cloud.firestore {
         && request.resource.data.parroquia.size() > 0
         && request.resource.data.aprobado == false;
 
-      allow get, list: if isAuth() && esControl() || esVisorNacional();
+      // P7: paréntesis corregidos para claridad
+      allow get, list: if isAuth() && (esControl() || esVisorNacional());
       allow update, delete: if isAuth() && esControl();
     }
 

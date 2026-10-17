@@ -163,15 +163,6 @@ async function hashEmail(email) {
 
 /**
  * Incrementa el contador de intentos fallidos para el dueño del email.
- * Flujo:
- *   1. Hashea el email.
- *   2. Consulta /emails-lookup/{hash}. Si no existe → no hace nada
- *      (el email no está registrado o el usuario nunca pasó por este flujo).
- *   3. Si existe → obtiene el UID y hace updateDoc en /usuarios/{uid}
- *      incrementando intentosFallidos.
- *   4. Si el contador llega a 3, la regla de Firestore exige que
- *      suspendido=true. Lo seteamos también.
- *
  * Silenciosa por diseño: si algo falla, no rompemos el flujo de login.
  */
 async function registrarIntentoFallido(email) {
@@ -184,30 +175,22 @@ async function registrarIntentoFallido(email) {
     const uid = lookupSnap.data().uid;
     if (!uid) return;
 
-    // Leer el contador público
     const contadorRef = doc(db, 'intentos-publicos', uid);
     const contadorSnap = await getDoc(contadorRef);
     const actual = contadorSnap.exists() ? (Number(contadorSnap.data().contador) || 0) : 0;
     const siguiente = Math.min(actual + 1, 3);
 
     if (siguiente === 1 && !contadorSnap.exists()) {
-      // Primer intento: crear el contador
       await setDoc(contadorRef, {
         contador: 1,
         ultimo: serverTimestamp()
       });
     } else if (siguiente > actual) {
-      // Incremento
       await updateDoc(contadorRef, {
         contador: siguiente,
         ultimo: serverTimestamp()
       });
     }
-
-    // Si llegó a 3, marcar suspendido en /usuarios (requiere estar autenticado,
-    // pero no lo estamos → esto lo tiene que hacer el admin o un trigger)
-    // Por ahora, solo actualizamos el contador público. El chequeo de
-    // suspensión se hace al intentar login (leer /intentos-publicos).
   } catch (e) {
     console.warn('[Auth] No se pudo registrar el intento fallido:', e?.code || e);
   }
@@ -225,7 +208,6 @@ async function resetearIntentosFallidos(uid) {
     if (contadorSnap.exists()) {
       await deleteDoc(contadorRef);
     }
-    // Resetear en /usuarios (silencioso si falla)
     await updateDoc(doc(db, 'usuarios', uid), {
       intentosFallidos: 0,
       ultimoIntentoFallido: null,
@@ -249,14 +231,13 @@ export function mostrarVista(id) {
 /**
  * Muestra un toast.
  * @param {string} msg
- * @param {number} ms          Duración en ms
- * @param {string} tipo        'success' | 'error' | 'warning' | 'info'
+ * @param {number} ms
+ * @param {string} tipo  'success' | 'error' | 'warning' | 'info'
  */
 export function toast(msg, ms = 3500, tipo = 'success') {
   const t = document.getElementById('toast');
   if (!t) return;
 
-  // Icono según tipo
   const iconos = {
     success: '✅',
     error:   '❌',
@@ -264,12 +245,9 @@ export function toast(msg, ms = 3500, tipo = 'success') {
     info:    'ℹ️'
   };
   const icono = iconos[tipo] || '';
-
-  // Si el mensaje ya tiene emoji, no duplicamos
   const yaTieneEmoji = /^[\u2700-\u27BF\uD83C-\uDBFF\uDC00-\uDFFF]/.test(msg);
   t.textContent = yaTieneEmoji ? msg : `${icono} ${msg}`;
 
-  // Reset de clases
   t.classList.remove('oculto', 'toast-success', 'toast-error', 'toast-warning', 'toast-info');
   t.classList.add(`toast-${tipo}`);
 
@@ -277,13 +255,6 @@ export function toast(msg, ms = 3500, tipo = 'success') {
   t._timer = setTimeout(() => t.classList.add('oculto'), ms);
 }
 
-/**
- * Activa o desactiva el loader global. Usa un contador de referencia
- * para soportar operaciones concurrentes sin que una cierre el loader
- * de la otra.
- * @param {boolean} on
- * @param {string} [mensaje] Mensaje opcional a mostrar
- */
 let _loaderCount = 0;
 export function loader(on, mensaje = null) {
   _loaderCount = Math.max(0, _loaderCount + (on ? 1 : -1));
@@ -300,12 +271,6 @@ export function loader(on, mensaje = null) {
   }
 }
 
-/**
- * Marca un botón como "cargando" (spinner + disabled).
- * @param {HTMLElement} btn
- * @param {boolean} cargando
- * @param {string} [textoOriginal]
- */
 export function setBotonCargando(btn, cargando, textoOriginal = null) {
   if (!btn) return;
   if (cargando) {
@@ -382,6 +347,9 @@ function wireRolRegistro() {
 }
 
 /* ---------- Registro público ---------- */
+/* P1 FIX: la cédula se verifica DESPUÉS de createUserWithEmailAndPassword,
+   porque /cedulas ahora requiere autenticación en las reglas.
+   Si la cédula está duplicada, se borra el usuario de Auth (rollback). */
 async function registrar(e) {
   e.preventDefault();
   const err = document.getElementById('reg-error');
@@ -409,25 +377,36 @@ async function registrar(e) {
     return;
   }
 
-  try {
-    const hash = await hashCedula(cedula);
-    if (hash) {
-      const cedulaSnap = await getDoc(doc(db, 'cedulas', hash));
-      if (cedulaSnap.exists()) {
-        err.textContent = 'No se pudo completar el registro. Verifica los datos o contacta al administrador.';
-        return;
-      }
-    }
-  } catch (ex) {
-    console.error('Error verificando cédula:', ex);
-    err.textContent = 'Error al verificar la cédula. Intenta de nuevo.';
-    return;
-  }
-
   enRegistroEmailPass = true;
+  let cred = null;
   try {
     loader(true);
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    cred = await createUserWithEmailAndPassword(auth, email, pass);
+
+    // P1: ahora estamos autenticados → la lectura de /cedulas funciona
+    let hash = null;
+    try {
+      hash = await hashCedula(cedula);
+      if (hash) {
+        const cedulaSnap = await getDoc(doc(db, 'cedulas', hash));
+        if (cedulaSnap.exists()) {
+          err.textContent = 'Esa cédula ya está registrada. Contacta al administrador.';
+          try { await cred.user.delete(); } catch (_) {}
+          try { await signOut(auth); } catch (_) {}
+          enRegistroEmailPass = false;
+          return;
+        }
+      }
+    } catch (errCed) {
+      console.error('Error verificando cédula:', errCed);
+      err.textContent = 'Error al verificar la cédula. Intenta de nuevo.';
+      try { await cred.user.delete(); } catch (_) {}
+      try { await signOut(auth); } catch (_) {}
+      enRegistroEmailPass = false;
+      return;
+    }
+
+    // Crear perfil
     await setDoc(doc(db, 'usuarios', cred.user.uid), {
       uid: cred.user.uid,
       nombre, apellido, cedula, telefono, email, rol,
@@ -437,7 +416,8 @@ async function registrar(e) {
       suspendido: false,
       creado: serverTimestamp()
     });
-        // Crear lookup público por hash de email
+
+    // Crear emails-lookup
     const emailHash = await hashEmail(email);
     if (emailHash) {
       try {
@@ -447,11 +427,10 @@ async function registrar(e) {
         });
       } catch (exEmailLookup) {
         console.warn('No se pudo crear el email-lookup:', exEmailLookup);
-        // No bloqueamos el registro por esto
       }
     }
 
-    const hash = await hashCedula(cedula);
+    // Crear cedulas (con race protection)
     if (hash) {
       try {
         await setDoc(doc(db, 'cedulas', hash), {
@@ -472,6 +451,7 @@ async function registrar(e) {
         return;
       }
     }
+
     ok.textContent = 'Registro exitoso. Espere aprobación del administrador.';
     e.target.reset();
     setTimeout(async () => {
@@ -481,6 +461,10 @@ async function registrar(e) {
   } catch (ex) {
     console.error(ex);
     err.textContent = traducirError(ex.code);
+    if (cred?.user) {
+      try { await cred.user.delete(); } catch (_) {}
+      try { await signOut(auth); } catch (_) {}
+    }
     enRegistroEmailPass = false;
   } finally {
     loader(false);
@@ -539,7 +523,6 @@ async function loginGoogle() {
   try {
     loader(true);
     await signInWithRedirect(auth, proveedorGoogle);
-    // La página se redirige y vuelve. El observador (onAuthStateChanged) maneja el resto.
   } catch (ex) {
     console.error(ex);
     err.textContent = traducirError(ex.code);
@@ -566,9 +549,6 @@ async function recuperarPassword() {
 
 async function logout() {
   detenerMonitoreoSesion();
-  // 🔧 FIX H.1: notifica a los módulos suscritos (admin, personal,
-  // planificacion) para que limpien sus listeners de Firestore.
-  // Sin esto, los onSnapshot quedan vivos tras cerrar sesión.
   document.dispatchEvent(new CustomEvent('usuarioCerroSesion'));
   await signOut(auth);
   sessionStorage.removeItem('usuarioActual');
@@ -621,11 +601,8 @@ function observar() {
       perfil.uid = user.uid;
       window.__perfil = perfil;
 
-      // Login exitoso → resetear intentos fallidos en background.
-      // No bloqueamos el flujo si falla.
-      // Login exitoso → limpiar contador público de intentos fallidos
       resetearIntentosFallidos(user.uid);
-      // No persistir campos sensibles en sessionStorage
+
       const perfilSeguro = { ...perfil };
       delete perfilSeguro.cedula;
       delete perfilSeguro.telefono;
@@ -633,7 +610,6 @@ function observar() {
 
       inicializarDashboard(perfil);
 
-      // Precarga del territorio en background para acelerar el primer uso del dashboard.
       if (typeof cargarTerritorio === 'function') {
         cargarTerritorio().catch((err) => console.warn('[Preload] fallo:', err));
       }
@@ -737,6 +713,9 @@ window.cargarParroquiasRegistro = function () {
   }
 };
 
+/* P4 + P5 FIX: perfil primero con merge (idempotente), luego link.
+   Verificación de cédula sin tragar errores.
+   Reintentos seguros si alguna escritura falla a mitad. */
 async function completarRegistroGoogle() {
   const errEl = document.getElementById('regError');
   errEl.textContent = '';
@@ -762,22 +741,27 @@ async function completarRegistroGoogle() {
     return;
   }
 
-  // F06: Verificar cédula duplicada ANTES de crear el perfil
-  const hashCed = await hashCedula(cedula);
-  if (hashCed) {
-    const cedulaSnap = await getDoc(doc(db, 'cedulas', hashCed)).catch(() => null);
-    if (cedulaSnap?.exists()) {
-      errEl.textContent = 'Esa cédula ya está registrada en el sistema.';
-      return;
+  // P5: verificar cédula sin tragar el error. Google auth está activo → getDoc funciona.
+  let hashCed = null;
+  try {
+    hashCed = await hashCedula(cedula);
+    if (hashCed) {
+      const cedulaSnap = await getDoc(doc(db, 'cedulas', hashCed));
+      if (cedulaSnap.exists() && cedulaSnap.data().uid !== usuarioGoogleTemporal.uid) {
+        errEl.textContent = 'Esa cédula ya está registrada en el sistema.';
+        return;
+      }
     }
+  } catch (errCed) {
+    console.error('Error verificando cédula:', errCed);
+    errEl.textContent = 'No se pudo verificar la cédula. Intenta de nuevo.';
+    return;
   }
 
   try {
     loader(true);
-    const credential = EmailAuthProvider.credential(email, password);
-    await linkWithCredential(usuarioGoogleTemporal, credential);
 
-    // F06: Rol por defecto válido (el admin puede ajustarlo al aprobar)
+    // P4: perfil PRIMERO (idempotente con merge), luego link
     await setDoc(doc(db, 'usuarios', usuarioGoogleTemporal.uid), {
       uid: usuarioGoogleTemporal.uid,
       email,
@@ -792,33 +776,46 @@ async function completarRegistroGoogle() {
       parroquia,
       estadoCuenta: 'pendiente',
       suspendido: false,
-      rol: 'reporte_estadal',   // Rol por defecto válido para las reglas
+      rol: 'reporte_estadal',
       gerencia: null,
       creado: serverTimestamp()
-    });
+    }, { merge: true });
 
-    // Crear lookup de email
+    // Link credencial email/password (idempotente)
+    try {
+      const credential = EmailAuthProvider.credential(email, password);
+      await linkWithCredential(usuarioGoogleTemporal, credential);
+    } catch (errLink) {
+      if (errLink.code === 'auth/provider-already-linked' ||
+          errLink.code === 'auth/credential-already-in-use') {
+        console.warn('Credencial ya enlazada:', errLink.code);
+      } else {
+        throw errLink;
+      }
+    }
+
+    // emails-lookup (idempotente con merge)
     const emailHashGoogle = await hashEmail(email);
     if (emailHashGoogle) {
       try {
         await setDoc(doc(db, 'emails-lookup', emailHashGoogle), {
           uid: usuarioGoogleTemporal.uid,
           creado: serverTimestamp()
-        });
-      } catch (exEmailLookup) {
-        console.warn('No se pudo crear el email-lookup (Google):', exEmailLookup);
+        }, { merge: true });
+      } catch (ex) {
+        console.warn('No se pudo crear email-lookup:', ex);
       }
     }
 
-    // F06: Crear registro de cédula anti-duplicados
+    // cedulas (idempotente con merge)
     if (hashCed) {
       try {
         await setDoc(doc(db, 'cedulas', hashCed), {
           uid: usuarioGoogleTemporal.uid,
           creado: serverTimestamp()
-        });
-      } catch (exCedula) {
-        console.warn('No se pudo crear el registro de cédula:', exCedula);
+        }, { merge: true });
+      } catch (ex) {
+        console.warn('No se pudo crear cedulas:', ex);
       }
     }
 
@@ -885,7 +882,6 @@ export function initAuth() {
   });
   document.getElementById('btnExtenderSesion')?.addEventListener('click', extenderSesion);
   document.getElementById('btnCerrarSesionAhora')?.addEventListener('click', cerrarSesionPorTimeout);
-  // Accesibilidad: cerrar modal de sesión con Escape
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       const modal = document.getElementById('modalSesionPorExpirar');
@@ -901,7 +897,6 @@ export function initAuth() {
     if (guardado) {
       try {
         const perfil = JSON.parse(guardado);
-        // Revalidar contra Firestore (por si admin cambió algo)
         getDoc(doc(db, 'usuarios', perfil.uid)).then(snap => {
           if (!snap.exists()) {
             sessionStorage.removeItem('usuarioActual');
@@ -916,14 +911,13 @@ export function initAuth() {
             signOut(auth);
             return;
           }
-        fresco.uid = perfil.uid;
-        window.__perfil = fresco;
-        // No persistir campos sensibles (mismo criterio que observar())
-        const frescoSeguro = { ...fresco };
-        delete frescoSeguro.cedula;
-        delete frescoSeguro.telefono;
-        sessionStorage.setItem('usuarioActual', JSON.stringify(frescoSeguro));
-        inicializarDashboard(fresco);
+          fresco.uid = perfil.uid;
+          window.__perfil = fresco;
+          const frescoSeguro = { ...fresco };
+          delete frescoSeguro.cedula;
+          delete frescoSeguro.telefono;
+          sessionStorage.setItem('usuarioActual', JSON.stringify(frescoSeguro));
+          inicializarDashboard(fresco);
         }).catch(() => {
           sessionStorage.removeItem('usuarioActual');
         });
@@ -933,7 +927,6 @@ export function initAuth() {
     }
   }, 0);
 
-  // Capturar resultado de redirect de Google (nueva forma con COOP)
   getRedirectResult(auth).catch(err => {
     if (err?.code) {
       console.error('Error en redirect Google:', err.code);
