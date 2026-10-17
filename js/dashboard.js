@@ -186,7 +186,8 @@ function isRecentReport(reporte) {
   const fecha = toDateValue(reporte?.fechaRegistro || reporte?.fecha || reporte?.actividad?.fecha);
   if (!fecha) return false;
   const diffDays = (Date.now() - fecha.getTime()) / (1000 * 60 * 60 * 24);
-  return diffDays <= 30;
+  // F18: también rechazar fechas futuras (diffDays negativo)
+  return diffDays >= 0 && diffDays <= 30;
 }
 
 function reportesEnTerritorio(filtro) {
@@ -2165,15 +2166,12 @@ export async function cargarDashboardNacional() {
   suscribirRecursos(perfil);
 }
 
-/* ==================== SUSCRIPCIÓN A RECURSOS ==================== */
-
 /**
- * Suscribe el dashboard a las 3 colecciones de recursos
- * (viveros, bancos de tierra, brigadas).
+ * Suscribe el dashboard a las colecciones de recursos
+ * (viveros, bancos, brigadas, planificación, formaciones, comités, consejos, núcleos).
  *
  * Cada suscripción maneja sus propios errores: si el rol no tiene permiso
- * para una colección (por ejemplo, un reporte_nacional de Formación no puede
- * leer viveros), la suscripción falla silenciosamente sin romper las demás.
+ * para una colección, la suscripción falla silenciosamente sin romper las demás.
  */
 function suscribirRecursos(perfil) {
   const rol = perfil?.rol;
@@ -2187,7 +2185,7 @@ function suscribirRecursos(perfil) {
   const verBrigadas = rol === 'control' || rol === 'visor_nacional'
     || (rol === 'dashboard_nacional' && gerencia === 'Organización');
 
-  // Viveros
+  // ===== Viveros =====
   if (verViveros) {
     unsubViveros = onSnapshot(collection(db, 'viveros'), (snap) => {
       viverosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -2200,7 +2198,7 @@ function suscribirRecursos(perfil) {
     viverosCache = [];
   }
 
-  // Bancos de tierra
+  // ===== Bancos de tierra =====
   if (verBancos) {
     unsubBancos = onSnapshot(collection(db, 'bancosTierra'), (snap) => {
       bancosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -2213,7 +2211,7 @@ function suscribirRecursos(perfil) {
     bancosCache = [];
   }
 
-  // Brigadas
+  // ===== Brigadas =====
   if (verBrigadas) {
     unsubBrigadas = onSnapshot(collection(db, 'brigadas'), (snap) => {
       brigadasCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -2226,11 +2224,7 @@ function suscribirRecursos(perfil) {
     brigadasCache = [];
   }
 
-  // Planificación
-  // - control y visor_nacional → todas
-  // - dashboard_estadal → solo del estado del usuario
-  // - dashboard_nacional → solo de la gerencia del usuario
-  // - otros roles → no se suscribe
+  // ===== Planificación =====
   if (rol === 'control' || rol === 'visor_nacional') {
     unsubPlanificacion = onSnapshot(collection(db, 'planificacion'), (snap) => {
       planificacionCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -2260,11 +2254,8 @@ function suscribirRecursos(perfil) {
   } else {
     planificacionCache = [];
   }
-    // Formaciones
-  // - control y visor_nacional → todas
-  // - dashboard_nacional + Formación → todas (o podría filtrar, pero por
-  //   simplicidad las traemos todas: son pocos registros)
-  // - otros roles → no se suscribe
+
+  // ===== Formaciones =====
   const verFormaciones = rol === 'control' || rol === 'visor_nacional'
     || (rol === 'dashboard_nacional' && gerencia === 'Formación');
 
@@ -2280,11 +2271,20 @@ function suscribirRecursos(perfil) {
     formacionesCache = [];
   }
 
-  // Comités ecosocialistas (organización)
+  // ===== Comités ecosocialistas =====
+  // - control / visor_nacional: todas
+  // - dashboard_nacional + Organización: todas
+  // - dashboard_estadal: filtradas por su estado
   const verComites = rol === 'control' || rol === 'visor_nacional'
-    || (rol === 'dashboard_nacional' && gerencia === 'Organización');
+    || (rol === 'dashboard_nacional' && gerencia === 'Organización')
+    || rol === 'dashboard_estadal';
+
   if (verComites) {
-    unsubComites = onSnapshot(collection(db, 'comitesEcosocialistas'), (snap) => {
+    let qComites = collection(db, 'comitesEcosocialistas');
+    if (rol === 'dashboard_estadal' && estado) {
+      qComites = query(qComites, where('ubicacion.estado', '==', estado));
+    }
+    unsubComites = onSnapshot(qComites, (snap) => {
       comitesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderJerarquia();
     }, (err) => {
@@ -2295,11 +2295,17 @@ function suscribirRecursos(perfil) {
     comitesCache = [];
   }
 
-  // Consejos ecosocialistas
+  // ===== Consejos ecosocialistas =====
   const verConsejos = rol === 'control' || rol === 'visor_nacional'
-    || (rol === 'dashboard_nacional' && gerencia === 'Organización');
+    || (rol === 'dashboard_nacional' && gerencia === 'Organización')
+    || rol === 'dashboard_estadal';
+
   if (verConsejos) {
-    unsubConsejos = onSnapshot(collection(db, 'consejosEcosocialistas'), (snap) => {
+    let qConsejos = collection(db, 'consejosEcosocialistas');
+    if (rol === 'dashboard_estadal' && estado) {
+      qConsejos = query(qConsejos, where('ubicacion.estado', '==', estado));
+    }
+    unsubConsejos = onSnapshot(qConsejos, (snap) => {
       consejosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderJerarquia();
     }, (err) => {
@@ -2310,11 +2316,17 @@ function suscribirRecursos(perfil) {
     consejosCache = [];
   }
 
-  // Núcleos formativos (formación)
+  // ===== Núcleos formativos =====
   const verNucleos = rol === 'control' || rol === 'visor_nacional'
-    || (rol === 'dashboard_nacional' && gerencia === 'Formación');
+    || (rol === 'dashboard_nacional' && gerencia === 'Formación')
+    || rol === 'dashboard_estadal';
+
   if (verNucleos) {
-    unsubNucleos = onSnapshot(collection(db, 'nucleos'), (snap) => {
+    let qNucleos = collection(db, 'nucleos');
+    if (rol === 'dashboard_estadal' && estado) {
+      qNucleos = query(qNucleos, where('territorio.estado', '==', estado));
+    }
+    unsubNucleos = onSnapshot(qNucleos, (snap) => {
       nucleosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderJerarquia();
     }, (err) => {

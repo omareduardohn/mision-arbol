@@ -1,4 +1,4 @@
-const CACHE = 'mision-arbol-v25';
+const CACHE = 'mision-arbol-v26';
 const ASSETS = [
   '/',
   '/index.html',
@@ -18,8 +18,15 @@ const ASSETS = [
   '/js/bancosTierra.js',
   '/js/brigadas.js',
   '/js/formaciones.js',
+  '/js/comites.js',
+  '/js/consejos.js',
+  '/js/nucleos.js',
+  '/js/voluntariado.js',
+  '/js/esquemasActividades.js',
   '/js/reportesCumplimiento.js',
-  '/js/reportesEspeciales.js'
+  '/js/reportesEspeciales.js',
+  '/voluntariado.html',
+  '/js/voluntariado-publico.js'
 ];
 
 self.addEventListener('install', (e) => {
@@ -60,11 +67,27 @@ self.addEventListener('fetch', (e) => {
 
   e.respondWith(
     caches.match(e.request).then(cached => {
-      return cached || fetch(e.request).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+      if (cached) return cached;
+      return fetch(e.request).then(res => {
+        // Solo cachear respuestas OK del mismo origen
+        if (res.ok && res.type === 'basic') {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+        }
         return res;
-      }).catch(() => caches.match('/index.html'));
+      }).catch(() => {
+        // F20: fallback solo para navegaciones HTML, no para scripts/JSON/imágenes
+        const esNavegacion = e.request.mode === 'navigate' || e.request.destination === 'document';
+        if (esNavegacion) {
+          return caches.match('/index.html');
+        }
+        // Para recursos no-HTML, devolver 503 con mensaje claro
+        return new Response('Recurso no disponible offline', {
+          status: 503,
+          statusText: 'Offline',
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
+      });
     })
   );
 });

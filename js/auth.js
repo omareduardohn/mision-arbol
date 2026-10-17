@@ -762,11 +762,22 @@ async function completarRegistroGoogle() {
     return;
   }
 
+  // F06: Verificar cédula duplicada ANTES de crear el perfil
+  const hashCed = await hashCedula(cedula);
+  if (hashCed) {
+    const cedulaSnap = await getDoc(doc(db, 'cedulas', hashCed)).catch(() => null);
+    if (cedulaSnap?.exists()) {
+      errEl.textContent = 'Esa cédula ya está registrada en el sistema.';
+      return;
+    }
+  }
+
   try {
     loader(true);
     const credential = EmailAuthProvider.credential(email, password);
     await linkWithCredential(usuarioGoogleTemporal, credential);
 
+    // F06: Rol por defecto válido (el admin puede ajustarlo al aprobar)
     await setDoc(doc(db, 'usuarios', usuarioGoogleTemporal.uid), {
       uid: usuarioGoogleTemporal.uid,
       email,
@@ -781,12 +792,12 @@ async function completarRegistroGoogle() {
       parroquia,
       estadoCuenta: 'pendiente',
       suspendido: false,
-      rol: null,
+      rol: 'reporte_estadal',   // Rol por defecto válido para las reglas
       gerencia: null,
       creado: serverTimestamp()
     });
 
-    // Crear lookup público por hash de email
+    // Crear lookup de email
     const emailHashGoogle = await hashEmail(email);
     if (emailHashGoogle) {
       try {
@@ -799,8 +810,20 @@ async function completarRegistroGoogle() {
       }
     }
 
+    // F06: Crear registro de cédula anti-duplicados
+    if (hashCed) {
+      try {
+        await setDoc(doc(db, 'cedulas', hashCed), {
+          uid: usuarioGoogleTemporal.uid,
+          creado: serverTimestamp()
+        });
+      } catch (exCedula) {
+        console.warn('No se pudo crear el registro de cédula:', exCedula);
+      }
+    }
+
     document.getElementById('modalRegistroGoogle').style.display = 'none';
-    toast('Registro exitoso. Su cuenta está pendiente de aprobación.', 5000);
+    toast('Registro exitoso. Su cuenta está pendiente de aprobación. Rol por defecto: Reporte Estadal (el administrador puede ajustarlo al aprobar).', 6000);
     usuarioGoogleTemporal = null;
     await signOut(auth);
   } catch (error) {

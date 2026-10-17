@@ -26,7 +26,7 @@ import {
 } from "./datos.js";
 
 import { marcarActividadComoEjecutada } from "./planificacion.js";
-import { esquemaDe, tiposActividadDe, CAMPOS_COMUNES } from "./esquemasActividades.js";
+import { esquemaDe, tiposActividadDe } from "./esquemasActividades.js";
 
 /* ==================== ESTADO GLOBAL ==================== */
 let pasoActual = 1;
@@ -1356,7 +1356,10 @@ async function buscarPlanificacionesCoincidentes(cacheKey) {
  * de la misma gerencia.
  */
 function encontrarActividadCoincidente(plan) {
-  if (!plan?.actividades) return 0;
+  // F15: priorizar siempre el match exacto por fecha + gerencia.
+  // Si no hay match exacto, elegir la primera de la misma gerencia SOLO si es la única.
+  // Si hay ambigüedad, devolver null para que el usuario decida (o no vincular).
+  if (!plan?.actividades || plan.actividades.length === 0) return null;
   const fecha = formData.datosGenerales.fecha;
   const ind = formData.indicador;
 
@@ -1366,11 +1369,19 @@ function encontrarActividadCoincidente(plan) {
   );
   if (exacto !== -1) return exacto;
 
-  // Match por gerencia
-  const porGerencia = plan.actividades.findIndex(a => a.gerencia === ind);
-  if (porGerencia !== -1) return porGerencia;
+  // Si no hay match exacto, buscar candidatos de la misma gerencia
+  const candidatos = plan.actividades
+    .map((a, idx) => ({ ...a, idx }))
+    .filter(a => a.gerencia === ind);
 
-  return 0;
+  if (candidatos.length === 0) return null;
+
+  // Si hay exactamente 1 candidato, elegirlo
+  if (candidatos.length === 1) return candidatos[0].idx;
+
+  // Ambigüedad: hay 2+ actividades de la misma gerencia, pero ninguna de la fecha
+  // Devolvemos null y el flujo no vincula (el usuario puede elegir manualmente o no vincular)
+  return null;
 }
 
 /**
@@ -1455,11 +1466,17 @@ function wireBannerVinculacion() {
       const p = planificacionesCoincidentes[idx];
       if (!p) return;
 
+      const actividadNumero = encontrarActividadCoincidente(p);
+      if (actividadNumero === null) {
+        toast('No se pudo identificar la actividad exacta. Esta planificación no se marcará como ejecutada automáticamente. Podés vincularla manualmente después.', 5000, 'warning');
+        return;
+      }
+
       planificacionVinculada = {
         id: p.id,
         semanaInicio: p.semanaInicio || '',
         semanaFin: p.semanaFin || '',
-        actividadNumero: encontrarActividadCoincidente(p)
+        actividadNumero
       };
 
       planificacionesCoincidentes = [];
@@ -3362,8 +3379,8 @@ async function responderReporteEspecial(reporte, perfil, contenedor, cerrarModal
 
     // Releemos el doc actual para no pisar respuestas nuevas (race condition)
     const snap = await getDocs(query(collection(db, 'reportesEspeciales')));
-    const actual = snap.docs.find(d => d.id === reporte.id);
-    if (!actual) return toast('Reporte no encontrado');
+    const actual = await getDoc(doc(db, 'reportesEspeciales', reporte.id));
+    if (!actual.exists()) return toast('Reporte no encontrado');
 
     const existentes = actual.data().respuestas || [];
     const nueva = {

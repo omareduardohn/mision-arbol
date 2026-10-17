@@ -11,7 +11,7 @@
 
 import {
   collection, addDoc, getDocs, doc, updateDoc, deleteDoc,
-  serverTimestamp, runTransaction
+  serverTimestamp, runTransaction, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { toast, loader, setBotonCargando } from "./auth.js";
@@ -147,18 +147,23 @@ async function poblarVinculoId(tipo, idSeleccionado) {
   sel.innerHTML = '<option value="">Cargando...</option>';
   sel.disabled = false;
   try {
+    // F12: Las reglas de Fase 6 permiten a Formación leer brigadas/comités/consejos,
+    // así que la lectura debería funcionar sin problemas.
     const snap = await getDocs(collection(db, tipoVinculo.coleccion));
     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+    if (docs.length === 0) {
+      sel.innerHTML = '<option value="">Sin registros</option>';
+      return;
+    }
     sel.innerHTML = '<option value="">Seleccione...</option>' +
       docs.map(d => {
         const nom = d.nombre || '—';
         return `<option value="${escapeHTML(d.id)}" ${d.id === idSeleccionado ? 'selected' : ''}>${escapeHTML(nom)}${d.codigoUnico ? ' (' + escapeHTML(d.codigoUnico) + ')' : ''}</option>`;
       }).join('');
-    if (docs.length === 0) sel.innerHTML = '<option value="">Sin registros</option>';
   } catch (e) {
     console.warn('[Núcleos] No se pudo cargar vínculos:', e);
-    sel.innerHTML = '<option value="">No disponible</option>';
+    sel.innerHTML = '<option value="">No disponible (verifica permisos)</option>';
   }
 }
 
@@ -280,7 +285,12 @@ async function cargarListaNucleos(perfil) {
   if (!cont) return;
   loader(true);
   try {
-    const snap = await getDocs(collection(db, 'nucleos'));
+    // F11: filtro territorial para reporte_estadal (las reglas ya limitan)
+    let q = collection(db, 'nucleos');
+    if (perfil.rol === 'reporte_estadal' && perfil.estado) {
+      q = query(q, where('territorio.estado', '==', perfil.estado));
+    }
+    const snap = await getDocs(q);
     if (snap.empty) {
       cont.innerHTML = `
         <div class="empty-state">
@@ -293,6 +303,8 @@ async function cargarListaNucleos(perfil) {
     const nucleos = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
     const puedeGestionar = usuarioPuedeGestionar(perfil);
+    const puedeEliminar = perfil?.rol === 'control' ||
+                          (perfil?.rol === 'reporte_nacional' && perfil?.gerencia === 'Formación');
 
     const filas = nucleos.map(n => {
       const ter = n.territorio || {};
@@ -313,9 +325,12 @@ async function cargarListaNucleos(perfil) {
           <td>${escapeHTML(n.responsable || '—')}</td>
           <td style="white-space:nowrap;">
             ${puedeGestionar
-              ? `<button class="btn btn-primary btn-sm" data-edit="${n.id}" aria-label="Editar ${nombreSeguro}">✏️</button>
-                 <button class="btn btn-danger btn-sm" data-del="${n.id}" aria-label="Eliminar ${nombreSeguro}">🗑️</button>`
-              : '—'}
+              ? `<button class="btn btn-primary btn-sm" data-edit="${n.id}" aria-label="Editar ${nombreSeguro}">✏️</button>`
+              : ''}
+            ${puedeEliminar
+              ? `<button class="btn btn-danger btn-sm" data-del="${n.id}" aria-label="Eliminar ${nombreSeguro}">🗑️</button>`
+              : ''}
+            ${!puedeGestionar && !puedeEliminar ? '—' : ''}
           </td>
         </tr>`;
     }).join('');

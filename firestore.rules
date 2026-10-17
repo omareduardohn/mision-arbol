@@ -12,19 +12,29 @@ service cloud.firestore {
     function rol() {
       return isAuth() ? userDoc().rol : '';
     }
-    function esControl()          { return rol() == 'control'; }
-    function esVisorNacional()    { return rol() == 'visor_nacional'; }
-    function esReporteNacional()  { return rol() == 'reporte_nacional'; }
-    function esReporteEstadal()   { return rol() == 'reporte_estadal'; }
-    function esDashboardNacional(){ return rol() == 'dashboard_nacional'; }
-    function esDashboardEstadal() { return rol() == 'dashboard_estadal'; }
+    // F01: Cuenta activa (aprobada y no suspendida)
+    function cuentaActiva() {
+      return isAuth()
+        && userDoc().estadoCuenta == 'aprobado'
+        && userDoc().suspendido != true;
+    }
+    function esControl()          { return cuentaActiva() && rol() == 'control'; }
+    function esVisorNacional()    { return cuentaActiva() && rol() == 'visor_nacional'; }
+    function esReporteNacional()  { return cuentaActiva() && rol() == 'reporte_nacional'; }
+    function esReporteEstadal()   { return cuentaActiva() && rol() == 'reporte_estadal'; }
+    function esDashboardNacional(){ return cuentaActiva() && rol() == 'dashboard_nacional'; }
+    function esDashboardEstadal() { return cuentaActiva() && rol() == 'dashboard_estadal'; }
     function miEstado()   { return userDoc().estado; }
     function miGerencia() { return userDoc().gerencia; }
 
     /* ========== USUARIOS ========== */
     match /usuarios/{uid} {
-      allow get: if isAuth() && (request.auth.uid == uid || esControl());
-      allow list: if isAuth() && esControl();
+      // Control puede leer incluso cuentas pendientes (para poder aprobarlas)
+      allow get: if isAuth() && (
+        request.auth.uid == uid
+        || (rol() == 'control')
+      );
+      allow list: if isAuth() && rol() == 'control';
       allow create: if isAuth()
                     && request.auth.uid == uid
                     && request.resource.data.rol in [
@@ -33,27 +43,16 @@ service cloud.firestore {
                        ]
                     && request.resource.data.estadoCuenta == 'pendiente';
 
-      // Update: 2 caminos.
-      //   1. control: puede todo.
-      //   2. dueño autenticado:
-      //      a) puede modificar campos no sensibles, O
-      //      b) puede RESETEAR sus propios intentos (intentosFallidos=0,
-      //         suspendido=false) al loguearse bien.
-      //
-      // Eliminada: la rama anónima que permitía a cualquiera incrementar
-      // intentos de otros usuarios. Esto era un vector de bloqueo arbitrario.
       allow update: if
-        esControl()
+        (isAuth() && rol() == 'control')
         ||
         (
           isAuth() && request.auth.uid == uid
           && (
-            // Rama A: modificar campos NO sensibles
             !request.resource.data.diff(resource.data)
                  .affectedKeys()
                  .hasAny(['rol','estadoCuenta','estado','gerencia','suspendido','cedula','email','intentosFallidos','ultimoIntentoFallido'])
             ||
-            // Rama B: solo puede RESETEAR sus propios intentos a 0
             (
               request.resource.data.diff(resource.data)
                 .affectedKeys().hasOnly(['intentosFallidos','ultimoIntentoFallido','suspendido'])
@@ -62,17 +61,18 @@ service cloud.firestore {
             )
           )
         );
-      allow delete: if esControl();
+      allow delete: if isAuth() && rol() == 'control';
     }
 
     /* ========== CÉDULAS ========== */
     match /cedulas/{hashId} {
-      allow get: if true;
+      // F02: get ahora requiere autenticación (el flujo de registro la usa ya autenticado)
+      allow get: if isAuth();
       allow list: if isAuth() && esControl();
       allow create: if isAuth()
                     && request.resource.data.uid == request.auth.uid
                     && !exists(/databases/$(database)/documents/cedulas/$(hashId));
-      allow delete: if esControl();
+      allow delete: if isAuth() && esControl();
     }
 
     /* ========== REPORTES ========== */
@@ -102,16 +102,30 @@ service cloud.firestore {
         (esReporteNacional() && request.resource.data.gerencia == miGerencia())
       );
 
-      allow update: if esControl()
-                    || resource.data.usuarioId == request.auth.uid;
+      // F04: hasOnly() en update (el propietario NO puede reescribir usuarioId, gerencia, ubicacion raíz)
+      allow update: if isAuth() && (
+        esControl()
+        ||
+        (
+          resource.data.usuarioId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['datosGenerales','detalleIndicador','cierre','participantes',
+                         'actividad','observaciones','camposEspecificos',
+                         'planificacionId','planificacionActividadNumero'])
+        )
+      );
 
-      allow delete: if esControl()
-                    || (resource.data.usuarioId == request.auth.uid
-                        && resource.data.planificacionId == null);
+      allow delete: if isAuth() && (
+        esControl()
+        || (resource.data.usuarioId == request.auth.uid
+            && resource.data.planificacionId == null)
+      );
     }
 
     /* ========== EMAILS LOOKUP ========== */
     match /emails-lookup/{hashEmail} {
+      // Se mantiene get público: el flujo de login lo lee ANTES de autenticar
+      // para bloquear por intentos fallidos. Documentado como riesgo aceptado (F02).
       allow get: if true;
       allow list: if false;
 
@@ -123,25 +137,18 @@ service cloud.firestore {
                     );
 
       allow update: if false;
-      allow delete: if esControl();
+      allow delete: if isAuth() && esControl();
     }
 
     /* ========== INTENTOS PUBLICOS ========== */
     match /intentos-publicos/{uid} {
-      // get sigue público (login anónimo lo necesita).
-      // list SOLO para control, para que el panel lea los contadores.
       allow get: if true;
       allow list: if isAuth() && esControl();
 
-      // Create: SOLO se puede iniciar el contador en 1.
-      // Antes se aceptaba 1..3, lo cual permitía a un atacante anónimo
-      // crear el doc directamente con contador=3 y bloquear a la víctima
-      // de una sola escritura.
       allow create: if
         request.resource.data.contador is number
         && request.resource.data.contador == 1;
 
-      // Update: rate-limitado, incremento de a 1.
       allow update: if
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['contador','ultimo'])
         && request.resource.data.contador is number
@@ -156,11 +163,13 @@ service cloud.firestore {
     }
 
     /* ========== PERSONAL ========== */
+    // F03: dashboards solo pueden leer de su estado/gerencia
     match /personal/{id} {
       allow get: if isAuth() && (
         esControl() ||
         esVisorNacional() ||
-        esDashboardNacional() || esDashboardEstadal() ||
+        (esDashboardNacional() && resource.data.gerencia == miGerencia()) ||
+        (esDashboardEstadal() && resource.data.estado == miEstado()) ||
         (esReporteEstadal()  && resource.data.estado == miEstado()) ||
         (esReporteNacional() && resource.data.gerencia == miGerencia())
       );
@@ -168,7 +177,8 @@ service cloud.firestore {
       allow list: if isAuth() && (
         esControl() ||
         esVisorNacional() ||
-        esDashboardNacional() || esDashboardEstadal() ||
+        (esDashboardNacional() && resource.data.gerencia == miGerencia()) ||
+        (esDashboardEstadal() && resource.data.estado == miEstado()) ||
         (esReporteEstadal()  && resource.data.estado == miEstado()) ||
         (esReporteNacional() && resource.data.gerencia == miGerencia())
       );
@@ -179,15 +189,30 @@ service cloud.firestore {
         (esReporteNacional() && request.resource.data.gerencia == miGerencia())
       );
 
-      allow update, delete: if esControl()
-        || (isAuth() && resource.data.creadoPor == request.auth.uid);
+      // F07: hasOnly en update
+      allow update: if isAuth() && (
+        esControl() ||
+        (
+          resource.data.creadoPor == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['nombreCompleto','cedula','telefono','correo',
+                         'tieneWhatsapp','tieneTelegram','tallaCamisa',
+                         'tallaPantalon','tallaZapato','tallaGorra',
+                         'cargo','activo','actualizado'])
+        )
+      );
+
+      allow delete: if isAuth() && esControl();
     }
 
     /* ========== PLANIFICACIÓN ========== */
+    // F10: agregar acceso a dashboards
     match /planificacion/{id} {
       allow get: if isAuth() && (
         esControl() ||
         esVisorNacional() ||
+        (esDashboardNacional() && resource.data.gerenciaUsuario == miGerencia()) ||
+        (esDashboardEstadal() && resource.data.estadoUsuario == miEstado()) ||
         (esReporteEstadal()  && resource.data.estadoUsuario == miEstado()) ||
         (esReporteNacional() && resource.data.gerenciaUsuario == miGerencia()) ||
         resource.data.usuarioId == request.auth.uid
@@ -196,6 +221,8 @@ service cloud.firestore {
       allow list: if isAuth() && (
         esControl() ||
         esVisorNacional() ||
+        (esDashboardNacional() && resource.data.gerenciaUsuario == miGerencia()) ||
+        (esDashboardEstadal() && resource.data.estadoUsuario == miEstado()) ||
         (esReporteEstadal()  && resource.data.estadoUsuario == miEstado()) ||
         (esReporteNacional() && resource.data.gerenciaUsuario == miGerencia()) ||
         resource.data.usuarioId == request.auth.uid
@@ -207,22 +234,39 @@ service cloud.firestore {
         (esReporteNacional() && request.resource.data.gerenciaUsuario == miGerencia())
       );
 
-      allow update, delete: if esControl()
-                            || resource.data.usuarioId == request.auth.uid;
+      // F07: hasOnly en update
+      allow update: if isAuth() && (
+        esControl() ||
+        (
+          resource.data.usuarioId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['actividades','estado','fechaActualizacion'])
+        )
+      );
+
+      allow delete: if isAuth() && (
+        esControl()
+        || resource.data.usuarioId == request.auth.uid
+      );
     }
 
     /* ========== REPORTES ESPECIALES ========== */
+    // F08: append-only en respuestas, validar que sea la propia respuesta del usuario
     match /reportesEspeciales/{id} {
-      allow get: if isAuth();
-      allow list: if isAuth();
-      allow create, delete: if esControl();
+      allow get: if isAuth() && cuentaActiva();
+      allow list: if isAuth() && cuentaActiva();
+      allow create, delete: if isAuth() && esControl();
 
-      allow update: if esControl()
-        || (
-          isAuth()
+      allow update: if isAuth() && (
+        esControl()
+        ||
+        (
+          cuentaActiva()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['respuestas'])
           && request.resource.data.respuestas.size() == resource.data.respuestas.size() + 1
-        );
+          && request.resource.data.respuestas[resource.data.respuestas.size()].usuarioId == request.auth.uid
+        )
+      );
     }
 
     /* ========== VIVEROS ========== */
@@ -243,7 +287,24 @@ service cloud.firestore {
         esDashboardEstadal()
       );
 
-      allow create, update, delete: if isAuth() && (
+      allow create: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Producción')
+      );
+
+      // F07: hasOnly en update
+      allow update: if isAuth() && (
+        esControl() ||
+        (
+          esReporteNacional() && miGerencia() == 'Producción'
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['nombre','tipo','ubicacion','capacidad','plantasActuales',
+                         'estatus','responsable','telefono','observaciones',
+                         'latitud','longitud','actualizado'])
+        )
+      );
+
+      allow delete: if isAuth() && (
         esControl() ||
         (esReporteNacional() && miGerencia() == 'Producción')
       );
@@ -267,7 +328,12 @@ service cloud.firestore {
         esDashboardEstadal()
       );
 
-      allow create, update, delete: if isAuth() && (
+      allow create: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Plantación')
+      );
+
+      allow update, delete: if isAuth() && (
         esControl() ||
         (esReporteNacional() && miGerencia() == 'Plantación')
       );
@@ -280,7 +346,9 @@ service cloud.firestore {
         esVisorNacional() ||
         (esReporteNacional() && miGerencia() == 'Organización') ||
         (esDashboardNacional() && miGerencia() == 'Organización') ||
-        esDashboardEstadal()
+        esDashboardEstadal() ||
+        // F12: Formación puede leer brigadas para vincular núcleos
+        (esReporteNacional() && miGerencia() == 'Formación')
       );
 
       allow list: if isAuth() && (
@@ -288,18 +356,19 @@ service cloud.firestore {
         esVisorNacional() ||
         (esReporteNacional() && miGerencia() == 'Organización') ||
         (esDashboardNacional() && miGerencia() == 'Organización') ||
-        esDashboardEstadal()
+        esDashboardEstadal() ||
+        (esReporteNacional() && miGerencia() == 'Formación')
       );
 
       allow create: if isAuth() && (
-        (esControl() || (esReporteNacional() && miGerencia() == 'Organización'))
-        && request.resource.data.tipo == 'ecologica'
-      );
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Organización')
+      ) && request.resource.data.tipo == 'ecologica';
 
       allow update: if isAuth() && (
-        (esControl() || (esReporteNacional() && miGerencia() == 'Organización'))
-        && request.resource.data.tipo == 'ecologica'
-      );
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Organización')
+      ) && request.resource.data.tipo == 'ecologica';
 
       allow delete: if isAuth() && (
         esControl() ||
@@ -308,16 +377,22 @@ service cloud.firestore {
     }
 
     /* ========== CONTADORES ========== */
+    // F09: límite superior + incremento de a 1
     match /contadores/{tipo} {
-      allow get: if isAuth();
+      allow get: if isAuth() && cuentaActiva();
 
-      allow create: if isAuth()
+      allow create: if isAuth() && cuentaActiva()
+                    && request.resource.data.keys().hasOnly(['ultimo', 'actualizado'])
                     && request.resource.data.ultimo is number
-                    && request.resource.data.ultimo > 0;
+                    && request.resource.data.ultimo > 0
+                    && request.resource.data.ultimo <= 1000000;
 
-      allow update: if isAuth()
+      allow update: if isAuth() && cuentaActiva()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['ultimo', 'actualizado'])
                     && request.resource.data.ultimo is number
-                    && request.resource.data.ultimo > resource.data.ultimo;
+                    && request.resource.data.ultimo > resource.data.ultimo
+                    && request.resource.data.ultimo <= resource.data.ultimo + 1;
 
       allow delete: if false;
     }
@@ -331,19 +406,151 @@ service cloud.firestore {
         ((esReporteNacional() || esDashboardNacional()) && miGerencia() == 'Formación')
       );
 
-      allow create: if isAuth()
-                    && (esControl() || (esReporteNacional() && miGerencia() == 'Formación'))
-                    && request.resource.data.codigoUnico is string
-                    && request.resource.data.codigoUnico.matches('^FRM-[0-9]{6}$')
-                    && request.resource.data.titulo is string
-                    && request.resource.data.titulo.size() > 0
-                    && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
+      allow create: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Formación')
+      )
+        && request.resource.data.codigoUnico is string
+        && request.resource.data.codigoUnico.matches('^FRM-[0-9]{6}$')
+        && request.resource.data.titulo is string
+        && request.resource.data.titulo.size() > 0
+        && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
 
-      allow update: if isAuth()
-                    && (esControl() || (esReporteNacional() && miGerencia() == 'Formación'))
-                    && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
+      // F07: hasOnly en update
+      allow update: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Formación')
+      )
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['titulo','tipo','tema','descripcion','fechaInicio','fechaFin',
+                       'duracionHoras','modalidad','facilitador','ubicacion',
+                       'participantes','estatus','evidencia','observaciones','actualizado'])
+        && request.resource.data.estatus in ['planificada', 'en_curso', 'finalizada', 'cancelada'];
 
-      allow delete: if esControl();
+      allow delete: if isAuth() && esControl();
+    }
+
+    /* ========== COMITÉS ECOSOCIALISTAS ========== */
+    match /comitesEcosocialistas/{id} {
+      allow get, list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        esDashboardEstadal() ||
+        ((esReporteNacional() || esDashboardNacional()) && miGerencia() == 'Organización') ||
+        // F12: Formación puede leer comités para vincular núcleos
+        (esReporteNacional() && miGerencia() == 'Formación')
+      );
+
+      allow create: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Organización')
+      )
+        && request.resource.data.codigoUnico is string
+        && request.resource.data.codigoUnico.matches('^COM-[0-9]{6}$');
+
+      allow update: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Organización')
+      )
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['nombre','ubicacion','estatus','responsable','telefono',
+                       'observaciones','descripcion','actualizado']);
+
+      allow delete: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Organización')
+      );
+    }
+
+    /* ========== CONSEJOS ECOSOCIALISTAS ========== */
+    match /consejosEcosocialistas/{id} {
+      allow get, list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        esDashboardEstadal() ||
+        ((esReporteNacional() || esDashboardNacional()) && miGerencia() == 'Organización') ||
+        (esReporteNacional() && miGerencia() == 'Formación')
+      );
+
+      allow create: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Organización')
+      )
+        && request.resource.data.codigoUnico is string
+        && request.resource.data.codigoUnico.matches('^CON-[0-9]{6}$');
+
+      allow update: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Organización')
+      )
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['nombre','ubicacion','estatus','responsable','telefono',
+                       'observaciones','descripcion','actualizado']);
+
+      allow delete: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Organización')
+      );
+    }
+
+    /* ========== NÚCLEOS FORMATIVOS ========== */
+    match /nucleos/{id} {
+      allow get, list: if isAuth() && (
+        esControl() ||
+        esVisorNacional() ||
+        esDashboardEstadal() ||
+        ((esReporteNacional() || esDashboardNacional()) && miGerencia() == 'Formación')
+      );
+
+      allow create: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Formación')
+      )
+        && request.resource.data.codigoUnico is string
+        && request.resource.data.codigoUnico.matches('^NUC-[0-9]{6}$');
+
+      allow update: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Formación')
+      )
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['nombre','territorio','vinculadoA','estatus','responsable',
+                       'telefono','observaciones','descripcion','actualizado']);
+
+      // F12: Formación también puede borrar sus propios núcleos (alineado con UI)
+      allow delete: if isAuth() && (
+        esControl() ||
+        (esReporteNacional() && miGerencia() == 'Formación')
+      );
+    }
+
+    /* ========== VOLUNTARIADO (formulario público) ========== */
+    match /voluntarios/{id} {
+      allow create: if
+        request.resource.data.keys().hasOnly([
+          'nombre','cedula','telefono','correo','estado','municipio',
+          'parroquia','comuna','consejo','intereses','comentario',
+          'aprobado','creadoEn'
+        ])
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() > 0
+        && request.resource.data.nombre.size() <= 200
+        && request.resource.data.cedula is string
+        && request.resource.data.cedula.size() > 0
+        && request.resource.data.cedula.size() <= 30
+        && request.resource.data.telefono is string
+        && request.resource.data.telefono.size() > 0
+        && request.resource.data.telefono.size() <= 30
+        && request.resource.data.estado is string
+        && request.resource.data.estado.size() > 0
+        && request.resource.data.municipio is string
+        && request.resource.data.municipio.size() > 0
+        && request.resource.data.parroquia is string
+        && request.resource.data.parroquia.size() > 0
+        && request.resource.data.aprobado == false;
+
+      allow get, list: if isAuth() && esControl() || esVisorNacional();
+      allow update, delete: if isAuth() && esControl();
     }
 
   } /* <- cierra /databases */

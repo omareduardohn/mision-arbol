@@ -314,7 +314,15 @@ async function cargarListaFormaciones(perfil) {
 
   loader(true);
   try {
-    const snap = await getDocs(collection(db, 'formaciones'));
+    // F11: Filtro territorial.
+    // - control / visor_nacional: ven todo
+    // - reporte_nacional (Formación): ven todo (su gerencia ES Formación)
+    // - reporte_estadal: solo de su estado
+    let q = collection(db, 'formaciones');
+    if (perfil.rol === 'reporte_estadal' && perfil.estado) {
+      q = query(q, where('ubicacion.estado', '==', perfil.estado));
+    }
+    const snap = await getDocs(q);
 
     if (snap.empty) {
       cont.innerHTML = `
